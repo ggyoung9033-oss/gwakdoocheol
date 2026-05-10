@@ -52,23 +52,27 @@
 }
 
 /* 모바일 — 우하단 자유 사이즈 (RP 화면 가리지 않게). resize 핸들로 자유 조절. */
+/* style.css 하단 media query 수정 */
 @media (max-width: 768px) {
-    #gwak-panel:not(.gwak-minimized) {
-        bottom: 10px;
-        right: 10px;
-        left: auto;
-        top: auto;
-        width: 90vw;
-        max-width: 95vw;
-        height: 70vh;
-        max-height: 85vh;
-        height: 70dvh;
-        max-height: 85dvh;
-        min-width: 240px;
-        min-height: 200px;
-        border-radius: 12px;
-        border: 1px solid #4a90e2;
+    #gwak-panel {
+        /* !important를 써서 JS가 계산한 이상한 좌표를 덮어씀 */
+        position: fixed !important;
+        left: 50% !important;
+        bottom: 10px !important;
+        top: auto !important;
+        transform: translateX(-50%) !important;
+        width: 92vw !important;
+        height: 70dvh !important;
+        z-index: 10001 !important; /* ST 모바일 메뉴보다 위로 */
     }
+
+    /* 터치 클릭 미스 방지를 위해 버튼 크기 키움 */
+    .gwak-btn-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.2em;
+    }
+}
     /* 모바일에서도 resize 핸들 보이게 (터치 친화 36x36) */
     .gwak-resize-handle {
         width: 36px;
