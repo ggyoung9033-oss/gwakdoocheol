@@ -27,7 +27,7 @@ function loadSettings() {
             return {
                 recentChatN: s.recentChatN ?? 10,
                 systemPrompt: s.systemPrompt || DEFAULT_PERSONA,
-                maxTokens: s.maxTokens ?? 1024,
+                maxTokens: s.maxTokens ?? 4096,
                 profileId: s.profileId || '',
                 opacity: s.opacity ?? 100,
                 panelWidth: s.panelWidth ?? 380,
@@ -35,7 +35,7 @@ function loadSettings() {
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540 };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 4096, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540 };
 }
 
 function saveSettings(s) {
@@ -52,7 +52,9 @@ function createPanel() {
         <div class="gwak-panel-header">
             <span class="gwak-panel-title">🐗 곽두철</span>
             <div class="gwak-panel-controls">
-                <input type="range" class="gwak-opacity-slider" min="20" max="100" value="100" title="투명도">
+                <button class="gwak-btn gwak-btn-icon" data-action="opacity-down" title="투명도 ↓">🔅</button>
+                <span class="gwak-opacity-display" title="패널 투명도">100%</span>
+                <button class="gwak-btn gwak-btn-icon" data-action="opacity-up" title="투명도 ↑">🔆</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
@@ -77,7 +79,7 @@ function createPanel() {
             </label>
             <label class="gwak-field">
                 <span>최대 응답 토큰</span>
-                <input type="number" id="gwak-max-tokens" min="128" max="32768" step="128" value="1024">
+                <input type="number" id="gwak-max-tokens" min="128" max="32768" step="128" value="4096">
             </label>
             <label class="gwak-field">
                 <span>최근 채팅 메시지 N개 (RP 컨텍스트)</span>
@@ -120,18 +122,12 @@ function createPanel() {
         saveSettings(s);
     });
 
-    // 투명도 슬라이더
-    const opacitySlider = panel.querySelector('.gwak-opacity-slider');
+    // 투명도 (+/-) 버튼
+    const opacityDisplay = panel.querySelector('.gwak-opacity-display');
     const initialSettings = loadSettings();
-    opacitySlider.value = initialSettings.opacity;
-    panel.style.setProperty('--gwak-panel-opacity', initialSettings.opacity / 100);
-    opacitySlider.addEventListener('input', (e) => {
-        const val = parseInt(e.target.value);
-        panel.style.setProperty('--gwak-panel-opacity', val / 100);
-        const s = loadSettings();
-        s.opacity = val;
-        saveSettings(s);
-    });
+    const initOpacity = initialSettings.opacity ?? 100;
+    panel.style.setProperty('--gwak-panel-opacity', initOpacity / 100);
+    opacityDisplay.textContent = initOpacity + '%';
 
     // 저장된 크기 복원 (모바일 풀스크린은 미디어 쿼리가 처리)
     if (initialSettings.panelWidth) panel.style.width = initialSettings.panelWidth + 'px';
@@ -142,13 +138,10 @@ function createPanel() {
     const resizeObserver = new ResizeObserver(() => {
         clearTimeout(resizeSaveTimer);
         resizeSaveTimer = setTimeout(() => {
-            // 모바일은 저장 안 함 (풀스크린이라 의미 X)
-            if (window.innerWidth > 768) {
-                const s = loadSettings();
-                s.panelWidth = panel.offsetWidth;
-                s.panelHeight = panel.offsetHeight;
-                saveSettings(s);
-            }
+            const s = loadSettings();
+            s.panelWidth = panel.offsetWidth;
+            s.panelHeight = panel.offsetHeight;
+            saveSettings(s);
         }, 300);
     });
     resizeObserver.observe(panel);
@@ -172,7 +165,20 @@ function handlePanelClick(e) {
         case 'note': toggleNote(); break;
         case 'save-note': handleSaveNote(); break;
         case 'clear-note': handleClearNote(); break;
+        case 'opacity-down': adjustOpacity(-10); break;
+        case 'opacity-up': adjustOpacity(+10); break;
     }
+}
+
+function adjustOpacity(delta) {
+    const s = loadSettings();
+    const cur = s.opacity ?? 100;
+    const newVal = Math.max(20, Math.min(100, cur + delta));
+    panel.style.setProperty('--gwak-panel-opacity', newVal / 100);
+    const display = panel.querySelector('.gwak-opacity-display');
+    if (display) display.textContent = newVal + '%';
+    s.opacity = newVal;
+    saveSettings(s);
 }
 
 function handleInputKeydown(e) {
@@ -320,7 +326,7 @@ function refreshPanelProfileDropdown() {
 
 function handleSaveSettings() {
     const recentN = parseInt(panel.querySelector('#gwak-recent-n').value) || 10;
-    const maxTokens = parseInt(panel.querySelector('#gwak-max-tokens').value) || 1024;
+    const maxTokens = parseInt(panel.querySelector('#gwak-max-tokens').value) || 4096;
     const systemPrompt = panel.querySelector('#gwak-system-prompt').value || DEFAULT_PERSONA;
     const s = loadSettings();
     saveSettings({
@@ -529,7 +535,7 @@ export function setupExtensionCard() {
     document.getElementById('gwak-ext-save').addEventListener('click', () => {
         const s = loadSettings();
         s.profileId = document.getElementById('gwak-ext-profile').value;
-        s.maxTokens = parseInt(document.getElementById('gwak-ext-max-tokens').value) || 1024;
+        s.maxTokens = parseInt(document.getElementById('gwak-ext-max-tokens').value) || 4096;
         s.recentChatN = parseInt(document.getElementById('gwak-ext-recent-n').value) || 10;
         saveSettings(s);
         if (window.toastr) window.toastr.success('🐗 곽두철 설정 저장됨');

@@ -38,7 +38,7 @@ function flattenSystemMessages(messages) {
  * @param {Object} options - { maxTokens, profileId }
  * @returns {Promise<string>} LLM 응답 텍스트
  */
-export async function sendRequest(messages, { maxTokens = 1024, profileId = '' } = {}) {
+export async function sendRequest(messages, { maxTokens = 4096, profileId = '' } = {}) {
     const ctx = getCtx();
     const cm = ctx.ConnectionManagerRequestService;
 
