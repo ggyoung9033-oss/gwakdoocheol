@@ -552,23 +552,34 @@ function makeDraggable(el) {
     document.addEventListener('touchend', () => isDragging = false);
 }
 
-export function showPanel() {
-    createPanel();
-    // 누적된 inline style 깨끗이 리셋
-    panel.removeAttribute('style');
+// ─────────────────────────────────────────────────────
+// 글로벌 노출 (이 내용으로 통째로 교체)
+// ─────────────────────────────────────────────────────
 
-    // 저장된 사이즈 적용 (모바일은 화면 안에 fit되게 cap, 데스크톱은 그대로)
-    const s = loadSettings();
-    const isMobile = window.innerWidth <= 768;
-    const maxW = isMobile ? window.innerWidth * 0.95 : window.innerWidth - 40;
-    const maxH = isMobile ? window.innerHeight * 0.85 : window.innerHeight - 40;
+window.gwak = window.gwak || {};
+window.gwak.db = {
+    getHistory,
+    appendMessage,
+    setHistory,
+    deleteHistory,
+    deleteHistories,
+    getAllHistories,
+    selfTest,
+    
+    // [추가] 현재 채팅방 기록만 콕 집어서 삭제하는 기능
+    clearCurrentChat: async () => {
+        if (typeof window.gwak?.ui?.getCurrentChatKey !== 'function') {
+            console.error('[곽두철 DB] getCurrentChatKey 함수를 찾을 수 없습니다.');
+            return false;
+        }
+        const currentId = window.gwak.ui.getCurrentChatKey();
+        console.log(`[곽두철 DB] 현재 채팅방(${currentId}) 히스토리 삭제 시도`);
+        return await deleteHistory(currentId);
+    }
+};
 
-    if (s.panelWidth >= 240) {
-        panel.style.width = Math.min(s.panelWidth, maxW) + 'px';
-    }
-    if (s.panelHeight >= 200) {
-        panel.style.height = Math.min(s.panelHeight, maxH) + 'px';
-    }
+window.gwak.test = window.gwak.test || {};
+window.gwak.test.db = selfTest;
 
     panel.style.display = 'flex';
 
