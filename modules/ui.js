@@ -14,19 +14,33 @@ import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
 
 /**
- * 현재 ST 채팅 식별자 — 채팅별 곽두철 스레드 분리용.
- * 그룹 채팅: group ID
- * 솔로 캐릭터: 캐릭터 이름 + chat 파일 이름
- * fallback: 'no_chat' (ST가 chat 안 잡힐 때)
+ * 현재 ST 채팅 식별자 — chat_metadata에 자체 UUID 박는 방식.
+ * ST chat 파일명 변경, 분기 등에 안전. 새 chat이면 새 UUID 자동 발급.
  */
 function getCurrentChatKey() {
     try {
         const ctx = SillyTavern.getContext();
+        if (!ctx) return 'no_chat';
+
+        // chat_metadata 사용 (가장 robust) — ST가 chat 파일별 자동 보관
+        if (ctx.chat_metadata) {
+            if (!ctx.chat_metadata.gwakdoocheol_chat_id) {
+                ctx.chat_metadata.gwakdoocheol_chat_id = 'gwak_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                console.log('[곽두철] 새 chat에 ID 발급:', ctx.chat_metadata.gwakdoocheol_chat_id);
+                // ST 메타 저장
+                if (typeof ctx.saveMetadataDebounced === 'function') ctx.saveMetadataDebounced();
+                else if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+            }
+            return ctx.chat_metadata.gwakdoocheol_chat_id;
+        }
+
+        // fallback: 캐릭터 + chat 이름 조합
         if (ctx.groupId) return `group_${ctx.groupId}`;
         const charName = ctx.name2 || 'no_char';
         const chatName = ctx.characters?.[ctx.characterId]?.chat || 'no_chat';
         return `char_${charName}__${chatName}`;
     } catch (e) {
+        console.error('[곽두철] getCurrentChatKey 에러:', e);
         return 'no_chat';
     }
 }
