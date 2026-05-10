@@ -1,7 +1,7 @@
 // 🐗 곽두철 — UI 모듈
 // - 메인 플로팅 패널 (채팅 인터페이스)
 // - ST wand 메뉴(#extensionsMenu)에 진입점 추가
-// - 패널 내부 설정 토글 (시스템 프롬프트, 최근 채팅 N개)
+// - 패널 내부 설정 토글
 
 import { buildMessages } from './prompt.js';
 import { sendRequest } from './api.js';
@@ -18,10 +18,6 @@ const SETTINGS_KEY = 'gwak_settings_v1';
 let panel = null;
 let isLoading = false;
 
-// ─────────────────────────────────────────────────────
-// 설정 로드/저장
-// ─────────────────────────────────────────────────────
-
 function loadSettings() {
     try {
         const raw = localStorage.getItem(SETTINGS_KEY);
@@ -31,19 +27,16 @@ function loadSettings() {
                 recentChatN: s.recentChatN ?? 10,
                 systemPrompt: s.systemPrompt || DEFAULT_PERSONA,
                 maxTokens: s.maxTokens ?? 1024,
+                profileId: s.profileId || '',
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024 };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '' };
 }
 
 function saveSettings(s) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
-
-// ─────────────────────────────────────────────────────
-// 패널 생성
-// ─────────────────────────────────────────────────────
 
 function createPanel() {
     if (panel) return panel;
@@ -70,19 +63,26 @@ function createPanel() {
         <div class="gwak-panel-body gwak-settings-pane" data-pane="settings" style="display:none;">
             <h4>⚙️ 곽두철 설정</h4>
             <label class="gwak-field">
-                <span>최근 채팅 메시지 N개 (RP 컨텍스트로 보낼 양)</span>
-                <input type="number" id="gwak-recent-n" min="1" max="50" value="10">
+                <span>Connection Profile</span>
+                <div class="gwak-inline">
+                    <select id="gwak-profile-select"></select>
+                    <button class="gwak-btn" data-action="refresh-profiles" title="프로필 새로고침">↻</button>
+                </div>
             </label>
             <label class="gwak-field">
                 <span>최대 응답 토큰</span>
-                <input type="number" id="gwak-max-tokens" min="128" max="8192" step="128" value="1024">
+                <input type="number" id="gwak-max-tokens" min="128" max="32768" step="128" value="1024">
+            </label>
+            <label class="gwak-field">
+                <span>최근 채팅 메시지 N개 (RP 컨텍스트)</span>
+                <input type="number" id="gwak-recent-n" min="1" max="100" value="10">
             </label>
             <label class="gwak-field">
                 <span>시스템 프롬프트 (페르소나)</span>
                 <textarea id="gwak-system-prompt" rows="10"></textarea>
             </label>
             <div class="gwak-field-row">
-                <button class="gwak-btn" data-action="reset-prompt">기본 페르소나로 되돌리기</button>
+                <button class="gwak-btn" data-action="reset-prompt">기본값으로</button>
                 <button class="gwak-btn gwak-btn-primary" data-action="save-settings">저장</button>
             </div>
         </div>
@@ -92,15 +92,16 @@ function createPanel() {
 
     panel.addEventListener('click', handlePanelClick);
     panel.querySelector('#gwak-input').addEventListener('keydown', handleInputKeydown);
+    panel.querySelector('#gwak-profile-select').addEventListener('change', (e) => {
+        const s = loadSettings();
+        s.profileId = e.target.value;
+        saveSettings(s);
+    });
 
     makeDraggable(panel);
 
     return panel;
 }
-
-// ─────────────────────────────────────────────────────
-// 이벤트 핸들러
-// ─────────────────────────────────────────────────────
 
 function handlePanelClick(e) {
     const action = e.target.closest('[data-action]')?.dataset?.action;
@@ -112,6 +113,7 @@ function handlePanelClick(e) {
         case 'settings': toggleSettings(); break;
         case 'save-settings': handleSaveSettings(); break;
         case 'reset-prompt': panel.querySelector('#gwak-system-prompt').value = DEFAULT_PERSONA; break;
+        case 'refresh-profiles': refreshPanelProfileDropdown(); break;
     }
 }
 
@@ -132,7 +134,6 @@ async function handleSend() {
     input.value = '';
     isLoading = true;
 
-    // 사용자 메시지 표시 + DB 저장
     renderMessage({ role: 'user', content: userInput });
     await dbAppendMessage(GWAK_KEY, { role: 'user', content: userInput }, {});
 
@@ -140,7 +141,6 @@ async function handleSend() {
 
     try {
         const record = await dbGetHistory(GWAK_KEY);
-        // 방금 추가한 user 메시지 제외 (prompt에서 별도로 박힘)
         const history = (record?.messages || []).slice(0, -1);
 
         const settings = loadSettings();
@@ -152,7 +152,10 @@ async function handleSend() {
             contextOptions: { recentChatN: settings.recentChatN },
         });
 
-        const reply = await sendRequest(messages, { maxTokens: settings.maxTokens });
+        const reply = await sendRequest(messages, {
+            maxTokens: settings.maxTokens,
+            profileId: settings.profileId,
+        });
 
         loadingEl.remove();
         renderMessage({ role: 'assistant', content: reply });
@@ -186,28 +189,57 @@ function toggleSettings() {
         settingsPane.style.display = 'none';
         chatPane.style.display = 'flex';
     } else {
-        // 현재 설정 로드
         const s = loadSettings();
         panel.querySelector('#gwak-recent-n').value = s.recentChatN;
         panel.querySelector('#gwak-max-tokens').value = s.maxTokens;
         panel.querySelector('#gwak-system-prompt').value = s.systemPrompt;
+        refreshPanelProfileDropdown();
         chatPane.style.display = 'none';
         settingsPane.style.display = 'flex';
     }
+}
+
+function refreshPanelProfileDropdown() {
+    const select = panel.querySelector('#gwak-profile-select');
+    if (!select) return;
+
+    const ctx = SillyTavern.getContext();
+    const profiles = ctx.extensionSettings?.connectionManager?.profiles || [];
+    const settings = loadSettings();
+    const currentProfileId = settings.profileId || '';
+
+    select.innerHTML = '';
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '기본 (ST 활성 프로필 그대로)';
+    select.appendChild(defaultOpt);
+
+    profiles.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.name || '(이름 없음)'} - ${p.api || p.mode || '?'}`;
+        if (p.id === currentProfileId) opt.selected = true;
+        select.appendChild(opt);
+    });
+
+    if (currentProfileId === '') select.value = '';
 }
 
 function handleSaveSettings() {
     const recentN = parseInt(panel.querySelector('#gwak-recent-n').value) || 10;
     const maxTokens = parseInt(panel.querySelector('#gwak-max-tokens').value) || 1024;
     const systemPrompt = panel.querySelector('#gwak-system-prompt').value || DEFAULT_PERSONA;
-    saveSettings({ recentChatN: recentN, maxTokens, systemPrompt });
+    const s = loadSettings();
+    saveSettings({
+        ...s,
+        recentChatN: recentN,
+        maxTokens,
+        systemPrompt,
+    });
     if (window.toastr?.success) window.toastr.success('곽두철 설정 저장됨');
     toggleSettings();
 }
-
-// ─────────────────────────────────────────────────────
-// 메시지 렌더링
-// ─────────────────────────────────────────────────────
 
 function renderMessage({ role, content, isWelcome }) {
     const thread = panel.querySelector('#gwak-thread');
@@ -262,10 +294,6 @@ async function loadHistory() {
     }
 }
 
-// ─────────────────────────────────────────────────────
-// 드래그
-// ─────────────────────────────────────────────────────
-
 function makeDraggable(el) {
     const header = el.querySelector('.gwak-panel-header');
     let isDragging = false;
@@ -283,7 +311,6 @@ function makeDraggable(el) {
         el.style.right = 'auto';
         el.style.bottom = 'auto';
     }
-
     function moveDrag(clientX, clientY) {
         if (!isDragging) return;
         el.style.left = (startLeft + clientX - startX) + 'px';
@@ -310,14 +337,9 @@ function makeDraggable(el) {
     document.addEventListener('touchend', () => isDragging = false);
 }
 
-// ─────────────────────────────────────────────────────
-// 패널 표시/숨김
-// ─────────────────────────────────────────────────────
-
 export function showPanel() {
     createPanel();
     panel.style.display = 'flex';
-    // 설정 페인 닫기, 채팅 페인 열기
     panel.querySelector('[data-pane="settings"]').style.display = 'none';
     panel.querySelector('[data-pane="chat"]').style.display = 'flex';
     loadHistory();
@@ -332,14 +354,9 @@ export function togglePanel() {
     else hidePanel();
 }
 
-// ─────────────────────────────────────────────────────
-// ST wand 메뉴 진입점
-// ─────────────────────────────────────────────────────
-
 export function addMenuEntry() {
     const menu = document.getElementById('extensionsMenu');
     if (!menu) {
-        // ST가 아직 준비 안 됐을 수도 — 잠깐 기다렸다가 재시도
         setTimeout(addMenuEntry, 500);
         return;
     }

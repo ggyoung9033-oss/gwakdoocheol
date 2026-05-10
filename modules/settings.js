@@ -1,7 +1,5 @@
 // 🐗 곽두철 — ST Extensions 메뉴 설정 카드
-// 활성 connection profile 표시 + 시스템 프롬프트 / 토큰 / 히스토리 리셋
 
-import { getActiveProfile } from './api.js';
 import { deleteHistory as dbDeleteHistory } from './db.js';
 import { DEFAULT_PERSONA } from './persona.js';
 
@@ -17,10 +15,11 @@ function loadSettings() {
                 recentChatN: s.recentChatN ?? 10,
                 systemPrompt: s.systemPrompt || DEFAULT_PERSONA,
                 maxTokens: s.maxTokens ?? 1024,
+                profileId: s.profileId || '',
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024 };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '' };
 }
 
 function saveSettings(s) {
@@ -47,14 +46,17 @@ export function injectSettings() {
             </div>
             <div class="inline-drawer-content">
                 <div class="gwak-st-row">
-                    <strong>활성 Connection Profile:</strong>
-                    <span id="gwak-active-profile">로딩 중…</span>
-                    <button id="gwak-refresh-profile" class="menu_button">↻</button>
+                    <label for="gwak-st-profile">곽두철 전용 Connection Profile</label>
+                    <div class="gwak-st-inline">
+                        <select id="gwak-st-profile"></select>
+                        <button id="gwak-refresh-profiles" class="menu_button" title="프로필 목록 새로고침">↻</button>
+                    </div>
+                    <small class="gwak-st-hint">"기본" 선택 시 ST 활성 프로필 그대로 사용</small>
                 </div>
                 <hr>
                 <div class="gwak-st-row">
                     <label for="gwak-st-prompt">시스템 프롬프트 (페르소나)</label>
-                    <textarea id="gwak-st-prompt" rows="10"></textarea>
+                    <textarea id="gwak-st-prompt" rows="14"></textarea>
                     <div class="gwak-st-row-buttons">
                         <button id="gwak-st-prompt-reset" class="menu_button">기본값으로</button>
                         <button id="gwak-st-prompt-save" class="menu_button">저장</button>
@@ -62,14 +64,14 @@ export function injectSettings() {
                 </div>
                 <hr>
                 <div class="gwak-st-row">
-                    <label for="gwak-st-recent">최근 채팅 메시지 N개</label>
-                    <input type="number" id="gwak-st-recent" min="1" max="50" value="10">
+                    <label for="gwak-st-tokens">최대 응답 토큰</label>
+                    <input type="number" id="gwak-st-tokens" min="128" max="32768" step="128" value="1024">
                 </div>
                 <div class="gwak-st-row">
-                    <label for="gwak-st-tokens">최대 응답 토큰</label>
-                    <input type="number" id="gwak-st-tokens" min="128" max="8192" step="128" value="1024">
+                    <label for="gwak-st-recent">최근 채팅 메시지 N개 (RP 컨텍스트로 포함)</label>
+                    <input type="number" id="gwak-st-recent" min="1" max="100" value="10">
                 </div>
-                <button id="gwak-st-misc-save" class="menu_button">기본 설정 저장</button>
+                <button id="gwak-st-misc-save" class="menu_button">설정 저장</button>
                 <hr>
                 <div class="gwak-st-row">
                     <button id="gwak-st-reset-history" class="menu_button gwak-st-danger">곽두철 전체 히스토리 리셋</button>
@@ -79,14 +81,21 @@ export function injectSettings() {
     `;
     target.appendChild(card);
 
-    refreshActiveProfile();
-
     const settings = loadSettings();
     document.getElementById('gwak-st-prompt').value = settings.systemPrompt;
     document.getElementById('gwak-st-recent').value = settings.recentChatN;
     document.getElementById('gwak-st-tokens').value = settings.maxTokens;
 
-    document.getElementById('gwak-refresh-profile').addEventListener('click', refreshActiveProfile);
+    refreshProfileDropdown();
+
+    document.getElementById('gwak-refresh-profiles').addEventListener('click', refreshProfileDropdown);
+
+    document.getElementById('gwak-st-profile').addEventListener('change', (e) => {
+        const s = loadSettings();
+        s.profileId = e.target.value;
+        saveSettings(s);
+        if (window.toastr?.success) window.toastr.success('Connection Profile 저장됨');
+    });
 
     document.getElementById('gwak-st-prompt-reset').addEventListener('click', () => {
         document.getElementById('gwak-st-prompt').value = DEFAULT_PERSONA;
@@ -111,23 +120,41 @@ export function injectSettings() {
     });
 }
 
-function refreshActiveProfile() {
-    const el = document.getElementById('gwak-active-profile');
-    if (!el) return;
-    try {
-        const p = getActiveProfile();
-        if (p) {
-            el.textContent = `${p.name || '(이름 없음)'} (${p.api || p.mode || '?'})`;
-            el.style.color = '';
-        } else {
-            el.textContent = '없음 — ST에서 Connection Profile 설정 필요';
-            el.style.color = 'orange';
-        }
-    } catch (e) {
-        el.textContent = '추출 실패: ' + e.message;
-        el.style.color = 'red';
+function refreshProfileDropdown() {
+    const select = document.getElementById('gwak-st-profile');
+    if (!select) return;
+
+    const ctx = SillyTavern.getContext();
+    const profiles = ctx.extensionSettings?.connectionManager?.profiles || [];
+
+    const settings = loadSettings();
+    const currentProfileId = settings.profileId || '';
+
+    select.innerHTML = '';
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '기본 (ST 활성 프로필 그대로)';
+    select.appendChild(defaultOpt);
+
+    if (profiles.length === 0) {
+        const noneOpt = document.createElement('option');
+        noneOpt.value = '__none__';
+        noneOpt.textContent = '(등록된 Connection Profile 없음)';
+        noneOpt.disabled = true;
+        select.appendChild(noneOpt);
+    } else {
+        profiles.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.name || '(이름 없음)'} - ${p.api || p.mode || '?'}`;
+            if (p.id === currentProfileId) opt.selected = true;
+            select.appendChild(opt);
+        });
     }
+
+    if (currentProfileId === '') select.value = '';
 }
 
 window.gwak = window.gwak || {};
-window.gwak.settings = { injectSettings, refreshActiveProfile };
+window.gwak.settings = { injectSettings, refreshProfileDropdown };

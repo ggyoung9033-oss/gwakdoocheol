@@ -1,6 +1,6 @@
 // 🐗 곽두철 — API 호출 모듈
-// SillyTavern의 활성 connection profile 재활용
-// ST 1.13+ 의 ConnectionManagerRequestService 사용
+// SillyTavern의 ConnectionManagerRequestService로 호출
+// 곽두철 전용 profileId 사용 (없으면 ST 활성 프로필)
 
 function getContext() {
     return SillyTavern.getContext();
@@ -8,28 +8,28 @@ function getContext() {
 
 /**
  * 메시지 배열로 LLM 호출
- * @param {Array} messages - { role: 'system'|'user'|'assistant', content: string }[]
+ * @param {Array} messages - { role, content }[]
  * @param {Object} options - { maxTokens, profileId }
  * @returns {Promise<string>} LLM 응답 텍스트
  */
-export async function sendRequest(messages, { maxTokens = 1024, profileId = null } = {}) {
+export async function sendRequest(messages, { maxTokens = 1024, profileId = '' } = {}) {
     const ctx = getContext();
     const cm = ctx.ConnectionManagerRequestService;
 
     if (!cm || typeof cm.sendRequest !== 'function') {
         throw new Error(
             'ConnectionManagerRequestService 미지원. SillyTavern 1.13+ 필요. ' +
-            'ST 업데이트 후 다시 시도하거나, 활성 Connection Profile이 설정됐는지 확인.'
+            'ST 업데이트 후 다시 시도해줘.'
         );
     }
 
-    try {
-        // ST의 sendRequest: (profileId, prompt, max_tokens, customOptions?)
-        // profileId 가 null/undefined 면 활성 프로필 자동 사용
-        // prompt 는 string 또는 messages 배열 (ST가 내부 변환)
-        const result = await cm.sendRequest(profileId, messages, maxTokens);
+    const useProfileId = profileId || '';
 
-        // 응답 형태는 ST 버전 / 백엔드마다 다름 — 방어적으로 처리
+    try {
+        // ST: sendRequest(profileId, prompt, max_tokens, customOptions?)
+        const result = await cm.sendRequest(useProfileId, messages, maxTokens);
+
+        // 응답 형태는 ST 버전 / 백엔드마다 다를 수 있음
         if (typeof result === 'string') return result;
         if (result?.content) return result.content;
         if (result?.text) return result.text;
@@ -45,17 +45,5 @@ export async function sendRequest(messages, { maxTokens = 1024, profileId = null
     }
 }
 
-/**
- * 현재 활성 connection profile 정보 (UI 표시용)
- */
-export function getActiveProfile() {
-    const ctx = getContext();
-    const settings = ctx.extensionSettings?.connectionManager;
-    if (!settings) return null;
-    const profileId = settings.selectedProfile;
-    const profile = settings.profiles?.find(p => p.id === profileId);
-    return profile || null;
-}
-
 window.gwak = window.gwak || {};
-window.gwak.api = { sendRequest, getActiveProfile };
+window.gwak.api = { sendRequest };

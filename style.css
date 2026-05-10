@@ -196,6 +196,36 @@
     }
 }
 
+/* 프로필 드롭다운 inline */
+.gwak-inline {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.gwak-inline select {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--SmartThemeBodyColor, #d8e4f5);
+    border: 1px solid rgba(74, 144, 226, 0.4);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+#gwak-settings-card .gwak-st-inline {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+#gwak-settings-card .gwak-st-inline select {
+    flex: 1;
+}
+#gwak-settings-card .gwak-st-hint {
+    opacity: 0.7;
+    font-size: 0.85em;
+}
+
 /* ST wand 메뉴 항목 */
 #gwak-menu-entry { cursor: pointer; }
 #gwak-menu-entry:hover { background: rgba(74, 144, 226, 0.1); }

@@ -17,7 +17,7 @@ function init() {
     addMenuEntry();
     injectSettings();
     console.log(
-        '%c🐗 곽두철 v0.4.0 로드됨.',
+        '%c🐗 곽두철 v0.4.1 로드됨.',
         'color: #4a90e2; font-weight: bold;',
         '\n• Wand 메뉴(✨)에서 "🐗 곽두철" 클릭 → 패널 열기',
         '\n• ST Extensions 패널에 "🐗 곽두철" 카드 (시스템 프롬프트, 설정)',
