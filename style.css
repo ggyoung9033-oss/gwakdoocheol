@@ -8,8 +8,8 @@
     max-width: 95vw;
     height: 540px;
     max-height: 90vh;
-    min-width: 240px;
-    min-height: 100px;
+    min-width: 280px;
+    min-height: 320px;
     background: var(--SmartThemeBlurTintColor, #1b2a44);
     color: var(--SmartThemeBodyColor, #d8e4f5);
     border: 1px solid #4a90e2;
@@ -23,9 +23,35 @@
     overflow: hidden;
     opacity: var(--gwak-panel-opacity, 1);
     transition: opacity 0.15s ease;
+    /* resize: JS 핸들로 처리 */
 }
 
-/* 우하단 resize 핸들 — JS로 처리 (CSS resize는 모바일 신뢰 X) */
+/* 모바일 — 우하단 자유 사이즈 */
+@media (max-width: 768px) {
+    #gwak-panel {
+        bottom: 10px;
+        right: 10px;
+        left: auto;
+        top: auto;
+        width: 95vw;
+        max-width: 95vw;
+        height: 70vh;
+        max-height: 90vh;
+        height: 70dvh;
+        max-height: 90dvh;
+        min-width: 240px;
+        min-height: 100px;
+        border-radius: 12px;
+        border: 1px solid #4a90e2;
+    }
+    /* 모바일 핸들 더 크게 (터치 친화) */
+    .gwak-resize-handle {
+        width: 36px !important;
+        height: 36px !important;
+    }
+}
+
+/* 우하단 resize 핸들 — JS로 직접 그림 (CSS resize는 모바일 안 잡혀서) */
 .gwak-resize-handle {
     position: absolute;
     right: 0;
@@ -33,46 +59,22 @@
     width: 24px;
     height: 24px;
     cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.4) 60%, transparent 60%, transparent 70%, rgba(255, 255, 255, 0.4) 70%, rgba(255, 255, 255, 0.4) 80%, transparent 80%);
+    background: linear-gradient(135deg,
+        transparent 50%,
+        rgba(255, 255, 255, 0.5) 50%,
+        rgba(255, 255, 255, 0.5) 60%,
+        transparent 60%,
+        transparent 70%,
+        rgba(255, 255, 255, 0.5) 70%,
+        rgba(255, 255, 255, 0.5) 80%,
+        transparent 80%);
     border-bottom-right-radius: 12px;
-    z-index: 2;
+    z-index: 3;
     touch-action: none;
     user-select: none;
 }
-.gwak-resize-handle:hover {
-    background: linear-gradient(135deg, transparent 45%, rgba(255, 255, 255, 0.7) 45%);
-}
-
-/* 모바일: 핸들 더 크게 (터치 영역 확보) */
-@media (max-width: 768px) {
-    .gwak-resize-handle {
-        width: 36px;
-        height: 36px;
-    }
-}
-
-/* 모바일 — 우하단 작게 떠 있음. ST 입력창(아래쪽) 안 가리고, RP 화면 같이 보임. */
-@media (max-width: 768px) {
-    #gwak-panel:not(.gwak-minimized) {
-        bottom: 70px;
-        right: 10px;
-        left: auto;
-        top: auto;
-        width: 90vw;
-        max-width: 90vw;
-        height: 60vh;
-        max-height: 65vh;
-        height: 60dvh;
-        max-height: 65dvh;
-        min-width: 240px;
-        min-height: 200px;
-        border-radius: 12px;
-        border: 1px solid #4a90e2;
-    }
-    .gwak-resize-handle {
-        width: 36px;
-        height: 36px;
-    }
+#gwak-panel.gwak-minimized .gwak-resize-handle {
+    display: none !important;
 }
 
 /* Minimize 모드 — 헤더만 작게 띄움, 채팅 중 방해 안 되게 */
@@ -82,11 +84,9 @@
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
+
 }
 #gwak-panel.gwak-minimized .gwak-panel-body {
-    display: none !important;
-}
-#gwak-panel.gwak-minimized .gwak-resize-handle {
     display: none !important;
 }
 #gwak-panel.gwak-minimized .gwak-panel-controls > *:not([data-action="minimize"]):not([data-action="close"]) {

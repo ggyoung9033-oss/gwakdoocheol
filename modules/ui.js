@@ -14,27 +14,31 @@ import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
 
 /**
- * 현재 ST 채팅 식별자 — chat_metadata에 자체 UUID 박는 방식.
- * ST chat 파일명 변경, 분기 등에 안전. 새 chat이면 새 UUID 자동 발급.
+ * 현재 ST 채팅 식별자 — 채팅별 곽두철 스레드 분리용.
+ * 그룹 채팅: group ID
+ * 솔로 캐릭터: 캐릭터 이름 + chat 파일 이름
+ * fallback: 'no_chat' (ST가 chat 안 잡힐 때)
+ */
+/**
+ * 현재 ST chat 식별자 — chat_metadata에 자체 UUID 박는 방식.
+ * ST가 chat 파일별로 metadata 따로 저장하므로 무조건 다른 chat은 다른 key.
  */
 function getCurrentChatKey() {
     try {
         const ctx = SillyTavern.getContext();
         if (!ctx) return 'no_chat';
 
-        // chat_metadata 사용 (가장 robust) — ST가 chat 파일별 자동 보관
         if (ctx.chat_metadata) {
             if (!ctx.chat_metadata.gwakdoocheol_chat_id) {
                 ctx.chat_metadata.gwakdoocheol_chat_id = 'gwak_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-                console.log('[곽두철] 새 chat에 ID 발급:', ctx.chat_metadata.gwakdoocheol_chat_id);
-                // ST 메타 저장
+                console.log('[곽두철] 새 chat ID 발급:', ctx.chat_metadata.gwakdoocheol_chat_id);
                 if (typeof ctx.saveMetadataDebounced === 'function') ctx.saveMetadataDebounced();
                 else if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
             }
             return ctx.chat_metadata.gwakdoocheol_chat_id;
         }
 
-        // fallback: 캐릭터 + chat 이름 조합
+        // fallback
         if (ctx.groupId) return `group_${ctx.groupId}`;
         const charName = ctx.name2 || 'no_char';
         const chatName = ctx.characters?.[ctx.characterId]?.chat || 'no_chat';
@@ -60,8 +64,8 @@ function loadSettings() {
                 maxTokens: s.maxTokens ?? 4096,
                 profileId: s.profileId || '',
                 opacity: s.opacity ?? 100,
-                panelWidth: (s.panelWidth >= 240) ? s.panelWidth : 380,
-                panelHeight: (s.panelHeight >= 200) ? s.panelHeight : 540,
+                panelWidth: s.panelWidth ?? 380,
+                panelHeight: s.panelHeight ?? 540,
             };
         }
     } catch (e) {}
@@ -73,13 +77,7 @@ function saveSettings(s) {
 }
 
 function createPanel() {
-    // 기존 패널 DOM이 있으면 제거 (ST reload 시 옛 panel 누적 방지)
-    const existingDom = document.getElementById('gwak-panel');
-    if (existingDom) {
-        existingDom.remove();
-        console.log('[곽두철] 기존 패널 DOM 제거 후 재생성');
-    }
-    panel = null;
+    if (panel) return panel;
 
     panel = document.createElement('div');
     panel.id = 'gwak-panel';
@@ -94,7 +92,7 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
-                <button class="gwak-btn gwak-btn-icon" data-action="minimize" title="최소화">▼</button>
+                <button class="gwak-btn gwak-btn-icon" data-action="minimize" title="최소화">⬇</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
             </div>
         </div>
@@ -176,15 +174,9 @@ function createPanel() {
     const resizeObserver = new ResizeObserver(() => {
         clearTimeout(resizeSaveTimer);
         resizeSaveTimer = setTimeout(() => {
-            // minimize 모드면 저장 X (작은 헤더 사이즈가 저장되면 다음 열 때 패널 작아짐)
-            if (panel.classList.contains('gwak-minimized')) return;
-            const w = panel.offsetWidth;
-            const h = panel.offsetHeight;
-            // 너무 작으면 저장 X (안전 가드)
-            if (w < 240 || h < 200) return;
             const s = loadSettings();
-            s.panelWidth = w;
-            s.panelHeight = h;
+            s.panelWidth = panel.offsetWidth;
+            s.panelHeight = panel.offsetHeight;
             saveSettings(s);
         }, 300);
     });
@@ -197,8 +189,8 @@ function createPanel() {
 }
 
 /**
- * 직접 만든 resize 핸들 — CSS resize:both이 모바일에서 잡히지 않는 문제 해결.
- * 우하단에 큰 핸들 + mousedown/touchstart 드래그.
+ * JS resize 핸들 — CSS resize:both이 모바일 안드로이드에서 핸들 안 그리는 문제 해결.
+ * 우하단 큰 핸들 + mousedown/touchstart 드래그.
  */
 function makeResizable(el) {
     const handle = el.querySelector('.gwak-resize-handle');
@@ -218,8 +210,8 @@ function makeResizable(el) {
     function moveResize(clientX, clientY) {
         if (!isResizing) return;
         const isMobile = window.innerWidth <= 768;
-        const maxW = isMobile ? window.innerWidth * 0.9 : window.innerWidth - 20;
-        const maxH = isMobile ? window.innerHeight * 0.65 : window.innerHeight - 20;
+        const maxW = isMobile ? window.innerWidth * 0.95 : window.innerWidth - 20;
+        const maxH = isMobile ? window.innerHeight * 0.85 : window.innerHeight - 20;
         const newW = Math.max(240, Math.min(maxW, startW + (clientX - startX)));
         const newH = Math.max(200, Math.min(maxH, startH + (clientY - startY)));
         el.style.width = newW + 'px';
@@ -282,7 +274,7 @@ function toggleMinimize() {
     const isMin = panel.classList.toggle('gwak-minimized');
     const btn = panel.querySelector('[data-action="minimize"]');
     if (btn) {
-        btn.textContent = isMin ? '▲' : '▼';
+        btn.textContent = isMin ? '⬆' : '⬇';
         btn.title = isMin ? '펼치기' : '최소화';
     }
 }
@@ -554,36 +546,10 @@ function makeDraggable(el) {
 
 export function showPanel() {
     createPanel();
-    // 누적된 inline style 깨끗이 리셋
-    panel.removeAttribute('style');
-
-    // 저장된 사이즈 적용 (모바일은 화면 안에 fit + ST 입력창 자리 남기기)
-    const s = loadSettings();
-    const isMobile = window.innerWidth <= 768;
-    const maxW = isMobile ? window.innerWidth * 0.9 : window.innerWidth - 40;
-    const maxH = isMobile ? window.innerHeight * 0.65 : window.innerHeight - 40;
-
-    if (s.panelWidth >= 240) {
-        panel.style.width = Math.min(s.panelWidth, maxW) + 'px';
-    }
-    if (s.panelHeight >= 200) {
-        panel.style.height = Math.min(s.panelHeight, maxH) + 'px';
-    }
-
     panel.style.display = 'flex';
-
-    // minimize 상태로 닫혔어도 다시 열 때 자동 펼침
-    if (panel.classList.contains('gwak-minimized')) {
-        panel.classList.remove('gwak-minimized');
-        const minBtn = panel.querySelector('[data-action="minimize"]');
-        if (minBtn) {
-            minBtn.textContent = '▼';
-            minBtn.title = '최소화';
-        }
-    }
+    panel.style.display = 'flex';
     showPane('chat');
     loadHistory();
-    console.log('[곽두철] 패널 표시 (key:', getCurrentChatKey() + ', 사이즈:', panel.offsetWidth + 'x' + panel.offsetHeight + ')');
 }
 
 export function hidePanel() {
@@ -686,12 +652,8 @@ export function setupExtensionCard() {
                 🐗 곽두철 패널 열기
             </button>
 
-            <button id="gwak-ext-clear-history" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em; margin-bottom: 4px;">
+            <button id="gwak-ext-clear-history" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em;">
                 🗑️ 곽두철 대화 기록 전체 삭제
-            </button>
-
-            <button id="gwak-ext-reset-panel" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em;">
-                ↺ 패널 위치/사이즈 리셋 (안 뜰 때)
             </button>
         </div>
     </div>
@@ -722,18 +684,6 @@ export function setupExtensionCard() {
             console.error('[곽두철] 기록 삭제 실패:', e);
             if (window.toastr) window.toastr.error('기록 삭제 실패');
         }
-    });
-
-    document.getElementById('gwak-ext-reset-panel').addEventListener('click', () => {
-        // settings의 사이즈/위치 관련 클리어 + 패널 DOM 제거
-        const s = loadSettings();
-        s.panelWidth = 380;
-        s.panelHeight = 540;
-        saveSettings(s);
-        const existingDom = document.getElementById('gwak-panel');
-        if (existingDom) existingDom.remove();
-        panel = null;
-        if (window.toastr) window.toastr.success('🐗 패널 리셋됨. 다시 열어봐.');
     });
 
     console.log('[곽두철] ST Extensions 카드 추가됨 (전체 설정 UI 포함)');
