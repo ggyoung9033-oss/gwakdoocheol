@@ -551,21 +551,15 @@ function makeDraggable(el) {
 
 export function showPanel() {
     createPanel();
-    // 누적된 inline style 리셋 — CSS default로 fall back
-    panel.style.left = '';
-    panel.style.top = '';
-    panel.style.right = '';
-    panel.style.bottom = '';
-    panel.style.maxWidth = '';
-    panel.style.maxHeight = '';
-    panel.style.minWidth = '';
-    panel.style.minHeight = '';
-    // 저장된 사이즈가 합리적이면 적용, 아니면 CSS default 유지
-    const s = loadSettings();
-    if (s.panelWidth >= 240) panel.style.width = s.panelWidth + 'px';
-    else panel.style.width = '';
-    if (s.panelHeight >= 200) panel.style.height = s.panelHeight + 'px';
-    else panel.style.height = '';
+    // 누적된 inline style 깨끗이 리셋
+    panel.removeAttribute('style');
+
+    // 데스크톱에서만 저장된 사이즈 적용 (모바일은 CSS 풀스크린 강제)
+    if (window.innerWidth > 768) {
+        const s = loadSettings();
+        if (s.panelWidth >= 240) panel.style.width = s.panelWidth + 'px';
+        if (s.panelHeight >= 200) panel.style.height = s.panelHeight + 'px';
+    }
 
     panel.style.display = 'flex';
 
