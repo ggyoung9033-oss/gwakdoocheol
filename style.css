@@ -7,7 +7,9 @@
     width: 380px;
     max-width: 95vw;
     height: 540px;
-    max-height: 80vh;
+    max-height: 90vh;
+    min-width: 280px;
+    min-height: 320px;
     background: var(--SmartThemeBlurTintColor, #1b2a44);
     color: var(--SmartThemeBodyColor, #d8e4f5);
     border: 1px solid #4a90e2;
@@ -21,12 +23,28 @@
     overflow: hidden;
     opacity: var(--gwak-panel-opacity, 1);
     transition: opacity 0.15s ease;
+    resize: both;
 }
 
-/* 호버/포커스 시 강제로 100% 복귀 (입력 / 읽기 편하게) */
-#gwak-panel:hover,
-#gwak-panel:focus-within {
-    opacity: 1 !important;
+/* 모바일 — 풀스크린 + resize 비활성화 */
+@media (max-width: 768px) {
+    #gwak-panel {
+        bottom: 0;
+        right: 0;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        min-width: 100vw;
+        min-height: 100vh;
+        border-radius: 0;
+        border: none;
+        resize: none;
+    }
 }
 
 /* 투명도 슬라이더 (헤더에 박힘) */
@@ -184,13 +202,15 @@
     box-shadow: 0 0 0 1px rgba(91, 158, 239, 0.4);
 }
 
-/* 설정 페인 */
-.gwak-settings-pane {
+/* 설정 페인 + 노트 페인 (같은 결) */
+.gwak-settings-pane,
+.gwak-note-pane {
     overflow-y: auto;
     padding: 14px;
     gap: 12px;
 }
-.gwak-settings-pane h4 {
+.gwak-settings-pane h4,
+.gwak-note-pane h4 {
     margin: 0 0 4px 0;
     color: #6fa8e6;
     font-size: 1em;
@@ -208,7 +228,8 @@
 .gwak-field input[type="number"],
 .gwak-field textarea,
 .gwak-settings-pane input[type="number"],
-.gwak-settings-pane textarea {
+.gwak-settings-pane textarea,
+.gwak-note-pane textarea {
     background: rgba(255, 255, 255, 0.05);
     color: var(--SmartThemeBodyColor, #d8e4f5);
     border: 1px solid rgba(74, 144, 226, 0.4);
@@ -216,6 +237,11 @@
     padding: 6px 10px;
     font-family: inherit;
     font-size: inherit;
+}
+.gwak-note-pane textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
 }
 .gwak-field-row {
     display: flex;

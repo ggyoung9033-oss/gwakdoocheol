@@ -11,6 +11,7 @@ import {
     deleteHistory as dbDeleteHistory,
 } from './db.js';
 import { DEFAULT_PERSONA } from './persona.js';
+import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
 
 const GWAK_KEY = '__gwak_global__';
 const SETTINGS_KEY = 'gwak_settings_v1';
@@ -29,10 +30,12 @@ function loadSettings() {
                 maxTokens: s.maxTokens ?? 1024,
                 profileId: s.profileId || '',
                 opacity: s.opacity ?? 100,
+                panelWidth: s.panelWidth ?? 380,
+                panelHeight: s.panelHeight ?? 540,
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100 };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540 };
 }
 
 function saveSettings(s) {
@@ -49,7 +52,8 @@ function createPanel() {
         <div class="gwak-panel-header">
             <span class="gwak-panel-title">🐗 곽두철</span>
             <div class="gwak-panel-controls">
-                <input type="range" class="gwak-opacity-slider" min="20" max="100" value="100" title="투명도 (호버 시 자동 100%)">
+                <input type="range" class="gwak-opacity-slider" min="20" max="100" value="100" title="투명도">
+                <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
@@ -88,6 +92,22 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-primary" data-action="save-settings">저장</button>
             </div>
         </div>
+        <div class="gwak-panel-body gwak-note-pane" data-pane="note" style="display:none;">
+            <h4>📝 RP 노트 — 참고용 메모</h4>
+            <div style="font-size: 0.85em; opacity: 0.75; margin-bottom: 8px;">
+                곽두철과 의논한 합의사항(캐릭터 결, 다음 흐름 등) 박아두면 RP 채팅 LLM이 참고함.<br>
+                강제 지시 X, 가이드만. 활성 OFF 시 인젝트 X.
+            </div>
+            <label class="gwak-field" style="flex-direction:row; align-items:center; gap:8px; margin-bottom:8px;">
+                <input type="checkbox" id="gwak-note-active" style="width:auto; margin:0;">
+                <span style="margin:0;">RP에 적용 (활성)</span>
+            </label>
+            <textarea id="gwak-note-content" rows="14" placeholder="예) 크리스 캐릭터 결: 툴툴거려도 책임감 있는 베테랑 형. 9mm 안 통하면 바로 무릎부터 작살. 영희한테는 은근한 챙김..."></textarea>
+            <div class="gwak-field-row" style="margin-top:10px;">
+                <button class="gwak-btn" data-action="clear-note">🗑️ 비우기</button>
+                <button class="gwak-btn gwak-btn-primary" data-action="save-note">💾 저장 & 적용</button>
+            </div>
+        </div>
     `;
 
     document.body.appendChild(panel);
@@ -113,6 +133,26 @@ function createPanel() {
         saveSettings(s);
     });
 
+    // 저장된 크기 복원 (모바일 풀스크린은 미디어 쿼리가 처리)
+    if (initialSettings.panelWidth) panel.style.width = initialSettings.panelWidth + 'px';
+    if (initialSettings.panelHeight) panel.style.height = initialSettings.panelHeight + 'px';
+
+    // 크기 변경 감지 (debounce — 드래그 중 매 프레임 호출 방지)
+    let resizeSaveTimer = null;
+    const resizeObserver = new ResizeObserver(() => {
+        clearTimeout(resizeSaveTimer);
+        resizeSaveTimer = setTimeout(() => {
+            // 모바일은 저장 안 함 (풀스크린이라 의미 X)
+            if (window.innerWidth > 768) {
+                const s = loadSettings();
+                s.panelWidth = panel.offsetWidth;
+                s.panelHeight = panel.offsetHeight;
+                saveSettings(s);
+            }
+        }, 300);
+    });
+    resizeObserver.observe(panel);
+
     makeDraggable(panel);
 
     return panel;
@@ -129,6 +169,9 @@ function handlePanelClick(e) {
         case 'save-settings': handleSaveSettings(); break;
         case 'reset-prompt': panel.querySelector('#gwak-system-prompt').value = DEFAULT_PERSONA; break;
         case 'refresh-profiles': refreshPanelProfileDropdown(); break;
+        case 'note': toggleNote(); break;
+        case 'save-note': handleSaveNote(); break;
+        case 'clear-note': handleClearNote(); break;
     }
 }
 
@@ -195,23 +238,57 @@ async function handleReset() {
     });
 }
 
-function toggleSettings() {
-    const chatPane = panel.querySelector('[data-pane="chat"]');
-    const settingsPane = panel.querySelector('[data-pane="settings"]');
-    const isSettingsOpen = settingsPane.style.display !== 'none';
+function showPane(paneName) {
+    ['chat', 'settings', 'note'].forEach(p => {
+        const el = panel.querySelector(`[data-pane="${p}"]`);
+        if (el) el.style.display = (p === paneName) ? 'flex' : 'none';
+    });
+}
 
-    if (isSettingsOpen) {
-        settingsPane.style.display = 'none';
-        chatPane.style.display = 'flex';
-    } else {
-        const s = loadSettings();
-        panel.querySelector('#gwak-recent-n').value = s.recentChatN;
-        panel.querySelector('#gwak-max-tokens').value = s.maxTokens;
-        panel.querySelector('#gwak-system-prompt').value = s.systemPrompt;
-        refreshPanelProfileDropdown();
-        chatPane.style.display = 'none';
-        settingsPane.style.display = 'flex';
+function toggleSettings() {
+    const settingsPane = panel.querySelector('[data-pane="settings"]');
+    if (settingsPane.style.display !== 'none') {
+        showPane('chat');
+        return;
     }
+    const s = loadSettings();
+    panel.querySelector('#gwak-recent-n').value = s.recentChatN;
+    panel.querySelector('#gwak-max-tokens').value = s.maxTokens;
+    panel.querySelector('#gwak-system-prompt').value = s.systemPrompt;
+    refreshPanelProfileDropdown();
+    showPane('settings');
+}
+
+function toggleNote() {
+    const notePane = panel.querySelector('[data-pane="note"]');
+    if (notePane.style.display !== 'none') {
+        showPane('chat');
+        return;
+    }
+    const n = loadNote();
+    panel.querySelector('#gwak-note-content').value = n.content;
+    panel.querySelector('#gwak-note-active').checked = n.active;
+    showPane('note');
+}
+
+function handleSaveNote() {
+    const content = panel.querySelector('#gwak-note-content').value;
+    const active = panel.querySelector('#gwak-note-active').checked;
+    saveNoteData(content, active);
+    if (window.toastr) {
+        const msg = (active && content.trim())
+            ? '🐗 노트 저장 + RP에 적용됨'
+            : '🐗 노트 저장 (RP 인젝트 비활성)';
+        window.toastr.success(msg);
+    }
+}
+
+function handleClearNote() {
+    if (!confirm('노트 비울까? RP 인젝트도 같이 제거.')) return;
+    clearNoteData();
+    panel.querySelector('#gwak-note-content').value = '';
+    panel.querySelector('#gwak-note-active').checked = true;
+    if (window.toastr) window.toastr.success('🐗 노트 비움');
 }
 
 function refreshPanelProfileDropdown() {
@@ -355,8 +432,8 @@ function makeDraggable(el) {
 export function showPanel() {
     createPanel();
     panel.style.display = 'flex';
-    panel.querySelector('[data-pane="settings"]').style.display = 'none';
-    panel.querySelector('[data-pane="chat"]').style.display = 'flex';
+    panel.style.display = 'flex';
+    showPane('chat');
     loadHistory();
 }
 
@@ -375,18 +452,30 @@ export function togglePanel() {
 // ─────────────────────────────────────────────────────
 
 /**
- * ST 익스텐션 설정 페이지(#extensions_settings)에 미니멀 카드 추가.
- * 카드 안에는 "🐗 곽두철 열기" 버튼 하나만. 정보 노출 X.
- * → 모바일 진입점 보장 (ST 설정 → Extensions 탭에 무조건 보임)
+ * ST 익스텐션 설정 페이지(#extensions_settings)에 카드 추가.
+ * 카드 안에 기본 설정 UI 다 들어감 (Connection Profile, 토큰, 시스템 프롬프트 등).
+ * → 모바일에서도 ST 설정→Extensions 탭에서 다 만질 수 있음.
  */
 export function setupExtensionCard() {
     if (document.getElementById('gwak-ext-card')) return;
     const container = document.getElementById('extensions_settings');
     if (!container) {
-        // ST 설정 페이지 아직 로드 안 됨 → 재시도
         setTimeout(setupExtensionCard, 1000);
         return;
     }
+
+    const settings = loadSettings();
+
+    // Connection Profile 옵션 만들기
+    let profileOptions = '<option value="">⚡ 활성 프로필 사용</option>';
+    try {
+        const ctx = SillyTavern.getContext();
+        const profiles = ctx.extensionSettings?.connectionManager?.profiles || [];
+        profiles.forEach(p => {
+            const sel = settings.profileId === p.id ? 'selected' : '';
+            profileOptions += `<option value="${p.id}" ${sel}>${p.name}</option>`;
+        });
+    } catch (e) {}
 
     const html = `
     <div id="gwak-ext-card" class="inline-drawer">
@@ -395,21 +484,73 @@ export function setupExtensionCard() {
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content" style="display: none; padding: 10px;">
-            <div style="margin-bottom: 10px; opacity: 0.8; font-size: 0.9em;">
+            <div style="margin-bottom: 12px; opacity: 0.75; font-size: 0.85em;">
                 RP 컨설턴트. 채팅 분석 · 진행 의논 · 캐릭터 역학 짚기.
             </div>
-            <button id="gwak-ext-open-btn" class="menu_button" style="width: 100%;">
-                🐗 곽두철 열기
+
+            <div style="margin-bottom: 10px;">
+                <label style="display:block; margin-bottom:4px; font-size:0.9em;">연결 프로필</label>
+                <select id="gwak-ext-profile" class="text_pole" style="width:100%;">
+                    ${profileOptions}
+                </select>
+            </div>
+
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <div style="flex:1;">
+                    <label style="display:block; margin-bottom:4px; font-size:0.9em;">최대 토큰</label>
+                    <input type="number" id="gwak-ext-max-tokens" class="text_pole" style="width:100%;"
+                           value="${settings.maxTokens}" min="256" max="20000" step="256">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; margin-bottom:4px; font-size:0.9em;">최근 채팅 N개 참조</label>
+                    <input type="number" id="gwak-ext-recent-n" class="text_pole" style="width:100%;"
+                           value="${settings.recentChatN}" min="0" max="50" step="1">
+                </div>
+            </div>
+
+            <button id="gwak-ext-save" class="menu_button" style="width: 100%; margin-bottom:10px;">💾 설정 저장</button>
+
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 10px 0;">
+
+            <button id="gwak-ext-open-btn" class="menu_button" style="width: 100%; margin-bottom:6px;">
+                🐗 곽두철 패널 열기
+            </button>
+
+            <button id="gwak-ext-clear-history" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em;">
+                🗑️ 곽두철 대화 기록 전체 삭제
             </button>
         </div>
     </div>
     `;
 
     container.insertAdjacentHTML('beforeend', html);
-    document.getElementById('gwak-ext-open-btn').addEventListener('click', () => {
-        togglePanel();
+
+    // 이벤트 와이어링
+    document.getElementById('gwak-ext-save').addEventListener('click', () => {
+        const s = loadSettings();
+        s.profileId = document.getElementById('gwak-ext-profile').value;
+        s.maxTokens = parseInt(document.getElementById('gwak-ext-max-tokens').value) || 1024;
+        s.recentChatN = parseInt(document.getElementById('gwak-ext-recent-n').value) || 10;
+        saveSettings(s);
+        if (window.toastr) window.toastr.success('🐗 곽두철 설정 저장됨');
     });
-    console.log('[곽두철] ST Extensions 카드 추가됨');
+
+    document.getElementById('gwak-ext-open-btn').addEventListener('click', () => togglePanel());
+
+    document.getElementById('gwak-ext-clear-history').addEventListener('click', async () => {
+        if (!confirm('곽두철과의 대화 기록을 전부 지울까? 되돌릴 수 없음.')) return;
+        try {
+            if (window.gwak?.db?.deleteHistory) {
+                await window.gwak.db.deleteHistory();
+                if (window.toastr) window.toastr.success('🐗 기록 삭제됨');
+            }
+        } catch (e) {
+            console.error('[곽두철] 기록 삭제 실패:', e);
+            if (window.toastr) window.toastr.error('기록 삭제 실패');
+        }
+    });
+
+    console.log('[곽두철] ST Extensions 카드 추가됨 (전체 설정 UI 포함)');
 }
 
 let wandRetryCount = 0;

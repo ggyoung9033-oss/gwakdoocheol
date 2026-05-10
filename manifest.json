@@ -1,7 +1,7 @@
 {
     "name": "gwakdoocheol",
     "display_name": "🐗 곽두철",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "🐗 곽두철: RP 컨설턴트. 채팅 분석 · 진행 의논 · 캐릭터 역학 짚기",
     "author": "Yun",
     "js": "index.js",
