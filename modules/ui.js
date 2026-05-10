@@ -217,8 +217,11 @@ function makeResizable(el) {
 
     function moveResize(clientX, clientY) {
         if (!isResizing) return;
-        const newW = Math.max(240, startW + (clientX - startX));
-        const newH = Math.max(100, startH + (clientY - startY));
+        const isMobile = window.innerWidth <= 768;
+        const maxW = isMobile ? window.innerWidth * 0.95 : window.innerWidth - 20;
+        const maxH = isMobile ? window.innerHeight * 0.85 : window.innerHeight - 20;
+        const newW = Math.max(240, Math.min(maxW, startW + (clientX - startX)));
+        const newH = Math.max(200, Math.min(maxH, startH + (clientY - startY)));
         el.style.width = newW + 'px';
         el.style.height = newH + 'px';
         el.style.maxWidth = 'none';
@@ -554,11 +557,17 @@ export function showPanel() {
     // 누적된 inline style 깨끗이 리셋
     panel.removeAttribute('style');
 
-    // 데스크톱에서만 저장된 사이즈 적용 (모바일은 CSS 풀스크린 강제)
-    if (window.innerWidth > 768) {
-        const s = loadSettings();
-        if (s.panelWidth >= 240) panel.style.width = s.panelWidth + 'px';
-        if (s.panelHeight >= 200) panel.style.height = s.panelHeight + 'px';
+    // 저장된 사이즈 적용 (모바일은 화면 안에 fit되게 cap, 데스크톱은 그대로)
+    const s = loadSettings();
+    const isMobile = window.innerWidth <= 768;
+    const maxW = isMobile ? window.innerWidth * 0.95 : window.innerWidth - 40;
+    const maxH = isMobile ? window.innerHeight * 0.85 : window.innerHeight - 40;
+
+    if (s.panelWidth >= 240) {
+        panel.style.width = Math.min(s.panelWidth, maxW) + 'px';
+    }
+    if (s.panelHeight >= 200) {
+        panel.style.height = Math.min(s.panelHeight, maxH) + 'px';
     }
 
     panel.style.display = 'flex';
