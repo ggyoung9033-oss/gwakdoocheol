@@ -276,6 +276,7 @@ export async function selfTest() {
 // 글로벌 노출 (기존 코드를 이 내용으로 교체하세요)
 // ─────────────────────────────────────────────────────
 
+// db.js 파일 맨 아래에 있는 window.gwak.db 부분을 이걸로 교체하세요
 window.gwak = window.gwak || {};
 window.gwak.db = {
     getHistory,
@@ -286,21 +287,17 @@ window.gwak.db = {
     getAllHistories,
     selfTest,
     
-    /**
-     * [추가] 현재 활성화된 채팅방의 히스토리만 콕 집어서 삭제
-     * ui.js의 getCurrentChatKey를 참조하여 실행합니다.
-     */
+    // [핵심 추가] 현재 채팅방 기록만 삭제하는 기능
     clearCurrentChat: async () => {
-        if (typeof window.gwak?.ui?.getCurrentChatKey !== 'function') {
-            console.error('[곽두철 DB] getCurrentChatKey 함수를 찾을 수 없습니다.');
+        // window.gwak.ui를 통해 ui.js에 있는 키를 안전하게 가져옴
+        const currentId = window.gwak?.ui?.getCurrentChatKey?.();
+        if (!currentId) {
+            console.error('[곽두철 DB] 현재 채팅방 키를 찾을 수 없습니다.');
             return false;
         }
-        const currentId = window.gwak.ui.getCurrentChatKey();
-        console.log(`[곽두철 DB] 현재 채팅방(${currentId}) 히스토리 삭제 시도`);
         return await deleteHistory(currentId);
     }
 };
 
-// 테스트용 별칭
 window.gwak.test = window.gwak.test || {};
 window.gwak.test.db = selfTest;
