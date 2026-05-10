@@ -59,7 +59,13 @@ function saveSettings(s) {
 }
 
 function createPanel() {
-    if (panel) return panel;
+    // 기존 패널 DOM이 있으면 제거 (ST reload 시 옛 panel 누적 방지)
+    const existingDom = document.getElementById('gwak-panel');
+    if (existingDom) {
+        existingDom.remove();
+        console.log('[곽두철] 기존 패널 DOM 제거 후 재생성');
+    }
+    panel = null;
 
     panel = document.createElement('div');
     panel.id = 'gwak-panel';
@@ -531,7 +537,24 @@ function makeDraggable(el) {
 
 export function showPanel() {
     createPanel();
+    // 누적된 inline style 리셋 — CSS default로 fall back
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+    panel.style.bottom = '';
+    panel.style.maxWidth = '';
+    panel.style.maxHeight = '';
+    panel.style.minWidth = '';
+    panel.style.minHeight = '';
+    // 저장된 사이즈가 합리적이면 적용, 아니면 CSS default 유지
+    const s = loadSettings();
+    if (s.panelWidth >= 240) panel.style.width = s.panelWidth + 'px';
+    else panel.style.width = '';
+    if (s.panelHeight >= 200) panel.style.height = s.panelHeight + 'px';
+    else panel.style.height = '';
+
     panel.style.display = 'flex';
+
     // minimize 상태로 닫혔어도 다시 열 때 자동 펼침
     if (panel.classList.contains('gwak-minimized')) {
         panel.classList.remove('gwak-minimized');
@@ -543,6 +566,7 @@ export function showPanel() {
     }
     showPane('chat');
     loadHistory();
+    console.log('[곽두철] 패널 표시 (key:', getCurrentChatKey() + ', 사이즈:', panel.offsetWidth + 'x' + panel.offsetHeight + ')');
 }
 
 export function hidePanel() {
@@ -645,8 +669,12 @@ export function setupExtensionCard() {
                 🐗 곽두철 패널 열기
             </button>
 
-            <button id="gwak-ext-clear-history" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em;">
+            <button id="gwak-ext-clear-history" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em; margin-bottom: 4px;">
                 🗑️ 곽두철 대화 기록 전체 삭제
+            </button>
+
+            <button id="gwak-ext-reset-panel" class="menu_button" style="width: 100%; opacity: 0.7; font-size: 0.85em;">
+                ↺ 패널 위치/사이즈 리셋 (안 뜰 때)
             </button>
         </div>
     </div>
@@ -677,6 +705,18 @@ export function setupExtensionCard() {
             console.error('[곽두철] 기록 삭제 실패:', e);
             if (window.toastr) window.toastr.error('기록 삭제 실패');
         }
+    });
+
+    document.getElementById('gwak-ext-reset-panel').addEventListener('click', () => {
+        // settings의 사이즈/위치 관련 클리어 + 패널 DOM 제거
+        const s = loadSettings();
+        s.panelWidth = 380;
+        s.panelHeight = 540;
+        saveSettings(s);
+        const existingDom = document.getElementById('gwak-panel');
+        if (existingDom) existingDom.remove();
+        panel = null;
+        if (window.toastr) window.toastr.success('🐗 패널 리셋됨. 다시 열어봐.');
     });
 
     console.log('[곽두철] ST Extensions 카드 추가됨 (전체 설정 UI 포함)');
