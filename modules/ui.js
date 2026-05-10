@@ -13,7 +13,23 @@ import {
 import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
 
-const GWAK_KEY = '__gwak_global__';
+/**
+ * 현재 ST 채팅 식별자 — 채팅별 곽두철 스레드 분리용.
+ * 그룹 채팅: group ID
+ * 솔로 캐릭터: 캐릭터 이름 + chat 파일 이름
+ * fallback: 'no_chat' (ST가 chat 안 잡힐 때)
+ */
+function getCurrentChatKey() {
+    try {
+        const ctx = SillyTavern.getContext();
+        if (ctx.groupId) return `group_${ctx.groupId}`;
+        const charName = ctx.name2 || 'no_char';
+        const chatName = ctx.characters?.[ctx.characterId]?.chat || 'no_chat';
+        return `char_${charName}__${chatName}`;
+    } catch (e) {
+        return 'no_chat';
+    }
+}
 const SETTINGS_KEY = 'gwak_settings_v1';
 
 let panel = null;
@@ -58,6 +74,7 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
+                <button class="gwak-btn gwak-btn-icon" data-action="minimize" title="최소화">▼</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
             </div>
         </div>
@@ -167,6 +184,16 @@ function handlePanelClick(e) {
         case 'clear-note': handleClearNote(); break;
         case 'opacity-down': adjustOpacity(-10); break;
         case 'opacity-up': adjustOpacity(+10); break;
+        case 'minimize': toggleMinimize(); break;
+    }
+}
+
+function toggleMinimize() {
+    const isMin = panel.classList.toggle('gwak-minimized');
+    const btn = panel.querySelector('[data-action="minimize"]');
+    if (btn) {
+        btn.textContent = isMin ? '▲' : '▼';
+        btn.title = isMin ? '펼치기' : '최소화';
     }
 }
 
@@ -199,12 +226,12 @@ async function handleSend() {
     isLoading = true;
 
     renderMessage({ role: 'user', content: userInput });
-    await dbAppendMessage(GWAK_KEY, { role: 'user', content: userInput }, {});
+    await dbAppendMessage(getCurrentChatKey(), { role: 'user', content: userInput }, {});
 
     const loadingEl = renderLoading();
 
     try {
-        const record = await dbGetHistory(GWAK_KEY);
+        const record = await dbGetHistory(getCurrentChatKey());
         const history = (record?.messages || []).slice(0, -1);
 
         const settings = loadSettings();
@@ -223,7 +250,7 @@ async function handleSend() {
 
         loadingEl.remove();
         renderMessage({ role: 'assistant', content: reply });
-        await dbAppendMessage(GWAK_KEY, { role: 'assistant', content: reply }, {});
+        await dbAppendMessage(getCurrentChatKey(), { role: 'assistant', content: reply }, {});
     } catch (err) {
         loadingEl.remove();
         renderError(err?.message || String(err));
@@ -235,7 +262,7 @@ async function handleSend() {
 
 async function handleReset() {
     if (!confirm('곽두철과의 모든 대화를 진짜 리셋할까? (복구 안 됨)')) return;
-    await dbDeleteHistory(GWAK_KEY);
+    await dbDeleteHistory(getCurrentChatKey());
     panel.querySelector('#gwak-thread').innerHTML = '';
     renderMessage({
         role: 'assistant',
@@ -375,7 +402,7 @@ function renderError(msg) {
 
 async function loadHistory() {
     try {
-        const record = await dbGetHistory(GWAK_KEY);
+        const record = await dbGetHistory(getCurrentChatKey());
         const thread = panel.querySelector('#gwak-thread');
         thread.innerHTML = '';
         if (!record || !record.messages?.length) {
@@ -450,6 +477,27 @@ export function hidePanel() {
 export function togglePanel() {
     if (!panel || panel.style.display === 'none') showPanel();
     else hidePanel();
+}
+
+/**
+ * ST 채팅이 바뀌면 (다른 캐릭터 / 새 chat) 곽두철 패널도 자동으로 그 chat의 히스토리로 전환.
+ * 패널 닫혀 있어도 OK — 다음에 열 때 자동으로 현재 chat의 히스토리.
+ */
+export function setupChatChangeListener() {
+    try {
+        const ctx = SillyTavern.getContext();
+        if (ctx.eventSource && ctx.event_types?.CHAT_CHANGED) {
+            ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => {
+                if (panel && panel.style.display === 'flex') {
+                    loadHistory();
+                    console.log('[곽두철] ST chat 전환 → 히스토리 재로드 (key:', getCurrentChatKey() + ')');
+                }
+            });
+            console.log('[곽두철] CHAT_CHANGED listener 등록');
+        }
+    } catch (e) {
+        console.warn('[곽두철] CHAT_CHANGED listener 실패:', e);
+    }
 }
 
 // ─────────────────────────────────────────────────────

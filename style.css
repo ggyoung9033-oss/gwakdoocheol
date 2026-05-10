@@ -26,25 +26,44 @@
     resize: both;
 }
 
-/* 모바일 — 풀스크린 default + resize 활성화 (사용자가 끌어서 줄일 수 있게) */
+/* 모바일 — 우하단 자유 사이즈 (풀스크린 강제 X, 사용자가 resize로 자유 조절) */
 @media (max-width: 768px) {
     #gwak-panel {
-        top: 0;
-        left: 0;
-        right: auto;
-        bottom: auto;
-        width: 100vw;
-        max-width: 100vw;
-        height: 100vh;
-        max-height: 100vh;
-        height: 100dvh;
-        max-height: 100dvh;
-        min-width: 280px;
-        min-height: 320px;
-        border-radius: 0;
-        border: none;
+        bottom: 10px;
+        right: 10px;
+        left: auto;
+        top: auto;
+        width: 95vw;
+        max-width: 95vw;
+        height: 70vh;
+        max-height: 90vh;
+        height: 70dvh;
+        max-height: 90dvh;
+        min-width: 240px;
+        min-height: 100px;
+        border-radius: 12px;
+        border: 1px solid #4a90e2;
         resize: both;
     }
+}
+
+/* Minimize 모드 — 헤더만 작게 띄움, 채팅 중 방해 안 되게 */
+#gwak-panel.gwak-minimized {
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    resize: none !important;
+}
+#gwak-panel.gwak-minimized .gwak-panel-body {
+    display: none !important;
+}
+#gwak-panel.gwak-minimized .gwak-panel-controls > *:not([data-action="minimize"]):not([data-action="close"]) {
+    display: none;
+}
+#gwak-panel.gwak-minimized .gwak-panel-title {
+    font-size: 0.9em;
 }
 
 /* 투명도 표시 (헤더 +/- 사이) */
