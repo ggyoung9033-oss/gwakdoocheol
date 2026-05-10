@@ -46,8 +46,8 @@ function loadSettings() {
                 maxTokens: s.maxTokens ?? 4096,
                 profileId: s.profileId || '',
                 opacity: s.opacity ?? 100,
-                panelWidth: s.panelWidth ?? 380,
-                panelHeight: s.panelHeight ?? 540,
+                panelWidth: (s.panelWidth >= 240) ? s.panelWidth : 380,
+                panelHeight: (s.panelHeight >= 200) ? s.panelHeight : 540,
             };
         }
     } catch (e) {}
@@ -156,9 +156,15 @@ function createPanel() {
     const resizeObserver = new ResizeObserver(() => {
         clearTimeout(resizeSaveTimer);
         resizeSaveTimer = setTimeout(() => {
+            // minimize 모드면 저장 X (작은 헤더 사이즈가 저장되면 다음 열 때 패널 작아짐)
+            if (panel.classList.contains('gwak-minimized')) return;
+            const w = panel.offsetWidth;
+            const h = panel.offsetHeight;
+            // 너무 작으면 저장 X (안전 가드)
+            if (w < 240 || h < 200) return;
             const s = loadSettings();
-            s.panelWidth = panel.offsetWidth;
-            s.panelHeight = panel.offsetHeight;
+            s.panelWidth = w;
+            s.panelHeight = h;
             saveSettings(s);
         }, 300);
     });
@@ -526,7 +532,15 @@ function makeDraggable(el) {
 export function showPanel() {
     createPanel();
     panel.style.display = 'flex';
-    panel.style.display = 'flex';
+    // minimize 상태로 닫혔어도 다시 열 때 자동 펼침
+    if (panel.classList.contains('gwak-minimized')) {
+        panel.classList.remove('gwak-minimized');
+        const minBtn = panel.querySelector('[data-action="minimize"]');
+        if (minBtn) {
+            minBtn.textContent = '▼';
+            minBtn.title = '최소화';
+        }
+    }
     showPane('chat');
     loadHistory();
 }
