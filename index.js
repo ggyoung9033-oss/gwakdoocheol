@@ -10,7 +10,7 @@ import './modules/db.js';
 import './modules/context.js';
 
 console.log(
-    '%c🐗 곽두철 v0.3.0 로드됨.',
+    '%c🐗 곽두철 v0.3.1 로드됨.',
     'color: #d97706; font-weight: bold;',
     '\n검증:',
     '\n  await gwak.db.selfTest()',
