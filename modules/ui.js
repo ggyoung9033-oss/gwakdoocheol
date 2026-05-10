@@ -127,6 +127,7 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-primary" data-action="save-note">💾 저장 & 적용</button>
             </div>
         </div>
+        <div class="gwak-resize-handle" title="크기 조절"></div>
     `;
 
     document.body.appendChild(panel);
@@ -164,8 +165,68 @@ function createPanel() {
     resizeObserver.observe(panel);
 
     makeDraggable(panel);
+    makeResizable(panel);
 
     return panel;
+}
+
+/**
+ * 직접 만든 resize 핸들 — CSS resize:both이 모바일에서 잡히지 않는 문제 해결.
+ * 우하단에 큰 핸들 + mousedown/touchstart 드래그.
+ */
+function makeResizable(el) {
+    const handle = el.querySelector('.gwak-resize-handle');
+    if (!handle) return;
+
+    let isResizing = false;
+    let startX, startY, startW, startH;
+
+    function startResize(clientX, clientY) {
+        isResizing = true;
+        startX = clientX;
+        startY = clientY;
+        startW = el.offsetWidth;
+        startH = el.offsetHeight;
+    }
+
+    function moveResize(clientX, clientY) {
+        if (!isResizing) return;
+        const newW = Math.max(240, startW + (clientX - startX));
+        const newH = Math.max(100, startH + (clientY - startY));
+        el.style.width = newW + 'px';
+        el.style.height = newH + 'px';
+        el.style.maxWidth = 'none';
+        el.style.maxHeight = 'none';
+    }
+
+    function endResize() {
+        if (!isResizing) return;
+        isResizing = false;
+        const s = loadSettings();
+        s.panelWidth = el.offsetWidth;
+        s.panelHeight = el.offsetHeight;
+        saveSettings(s);
+    }
+
+    handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startResize(e.clientX, e.clientY);
+    });
+    document.addEventListener('mousemove', (e) => moveResize(e.clientX, e.clientY));
+    document.addEventListener('mouseup', endResize);
+
+    handle.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        startResize(t.clientX, t.clientY);
+    }, { passive: false });
+    document.addEventListener('touchmove', (e) => {
+        if (!isResizing) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        moveResize(t.clientX, t.clientY);
+    }, { passive: false });
+    document.addEventListener('touchend', endResize);
 }
 
 function handlePanelClick(e) {

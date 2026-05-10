@@ -8,8 +8,8 @@
     max-width: 95vw;
     height: 540px;
     max-height: 90vh;
-    min-width: 280px;
-    min-height: 320px;
+    min-width: 240px;
+    min-height: 100px;
     background: var(--SmartThemeBlurTintColor, #1b2a44);
     color: var(--SmartThemeBodyColor, #d8e4f5);
     border: 1px solid #4a90e2;
@@ -23,10 +23,35 @@
     overflow: hidden;
     opacity: var(--gwak-panel-opacity, 1);
     transition: opacity 0.15s ease;
-    resize: both;
 }
 
-/* 모바일 — 우하단 자유 사이즈 (풀스크린 강제 X, 사용자가 resize로 자유 조절) */
+/* 우하단 resize 핸들 — JS로 처리 (CSS resize는 모바일 신뢰 X) */
+.gwak-resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    height: 24px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.4) 60%, transparent 60%, transparent 70%, rgba(255, 255, 255, 0.4) 70%, rgba(255, 255, 255, 0.4) 80%, transparent 80%);
+    border-bottom-right-radius: 12px;
+    z-index: 2;
+    touch-action: none;
+    user-select: none;
+}
+.gwak-resize-handle:hover {
+    background: linear-gradient(135deg, transparent 45%, rgba(255, 255, 255, 0.7) 45%);
+}
+
+/* 모바일: 핸들 더 크게 (터치 영역 확보) */
+@media (max-width: 768px) {
+    .gwak-resize-handle {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* 모바일 — 우하단 자유 사이즈 (JS resize 핸들로 자유 조절) */
 @media (max-width: 768px) {
     #gwak-panel {
         bottom: 10px;
@@ -43,7 +68,6 @@
         min-height: 100px;
         border-radius: 12px;
         border: 1px solid #4a90e2;
-        resize: both;
     }
 }
 
@@ -54,9 +78,11 @@
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
-    resize: none !important;
 }
 #gwak-panel.gwak-minimized .gwak-panel-body {
+    display: none !important;
+}
+#gwak-panel.gwak-minimized .gwak-resize-handle {
     display: none !important;
 }
 #gwak-panel.gwak-minimized .gwak-panel-controls > *:not([data-action="minimize"]):not([data-action="close"]) {
