@@ -19,6 +19,45 @@
     font-family: inherit;
     font-size: inherit;
     overflow: hidden;
+    opacity: var(--gwak-panel-opacity, 1);
+    transition: opacity 0.15s ease;
+}
+
+/* 호버/포커스 시 강제로 100% 복귀 (입력 / 읽기 편하게) */
+#gwak-panel:hover,
+#gwak-panel:focus-within {
+    opacity: 1 !important;
+}
+
+/* 투명도 슬라이더 (헤더에 박힘) */
+.gwak-opacity-slider {
+    width: 70px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-right: 4px;
+}
+.gwak-opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 1px solid rgba(74, 144, 226, 0.5);
+}
+.gwak-opacity-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 1px solid rgba(74, 144, 226, 0.5);
 }
 
 .gwak-panel-header {
@@ -213,39 +252,35 @@
     font-size: inherit;
 }
 
-#gwak-settings-card .gwak-st-inline {
+/* Floating 진입 버튼 (모바일/PC 공용 fallback) */
+#gwak-fab {
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2c6dbf, #4a90e2);
+    color: #fff;
+    border: none;
+    font-size: 1.6em;
+    cursor: pointer;
+    z-index: 9998;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
     display: flex;
-    gap: 6px;
     align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
 }
-#gwak-settings-card .gwak-st-inline select {
-    flex: 1;
+#gwak-fab:hover {
+    background: linear-gradient(135deg, #4a90e2, #5b9eef);
 }
-#gwak-settings-card .gwak-st-hint {
-    opacity: 0.7;
-    font-size: 0.85em;
+#gwak-fab:active {
+    transform: scale(0.92);
 }
 
 /* ST wand 메뉴 항목 */
 #gwak-menu-entry { cursor: pointer; }
 #gwak-menu-entry:hover { background: rgba(74, 144, 226, 0.1); }
-
-/* ST Extensions 패널 카드 */
-#gwak-settings-card .gwak-st-row {
-    margin: 8px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-#gwak-settings-card .gwak-st-row label { font-weight: 500; }
-#gwak-settings-card .gwak-st-row-buttons {
-    display: flex; gap: 8px; margin-top: 4px;
-}
-#gwak-settings-card #gwak-active-profile {
-    color: #6fa8e6; font-weight: 500;
-}
-#gwak-settings-card .gwak-st-danger {
-    background: rgba(220, 80, 80, 0.18);
-    color: #ffb0b0;
-    border-color: rgba(220, 80, 80, 0.4);
-}

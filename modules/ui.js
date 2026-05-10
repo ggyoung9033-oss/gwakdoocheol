@@ -28,10 +28,11 @@ function loadSettings() {
                 systemPrompt: s.systemPrompt || DEFAULT_PERSONA,
                 maxTokens: s.maxTokens ?? 1024,
                 profileId: s.profileId || '',
+                opacity: s.opacity ?? 100,
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '' };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100 };
 }
 
 function saveSettings(s) {
@@ -48,6 +49,7 @@ function createPanel() {
         <div class="gwak-panel-header">
             <span class="gwak-panel-title">🐗 곽두철</span>
             <div class="gwak-panel-controls">
+                <input type="range" class="gwak-opacity-slider" min="20" max="100" value="100" title="투명도 (호버 시 자동 100%)">
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
@@ -95,6 +97,19 @@ function createPanel() {
     panel.querySelector('#gwak-profile-select').addEventListener('change', (e) => {
         const s = loadSettings();
         s.profileId = e.target.value;
+        saveSettings(s);
+    });
+
+    // 투명도 슬라이더
+    const opacitySlider = panel.querySelector('.gwak-opacity-slider');
+    const initialSettings = loadSettings();
+    opacitySlider.value = initialSettings.opacity;
+    panel.style.setProperty('--gwak-panel-opacity', initialSettings.opacity / 100);
+    opacitySlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        panel.style.setProperty('--gwak-panel-opacity', val / 100);
+        const s = loadSettings();
+        s.opacity = val;
         saveSettings(s);
     });
 
@@ -354,24 +369,105 @@ export function togglePanel() {
     else hidePanel();
 }
 
+// ─────────────────────────────────────────────────────
+// 진입점 — Wand 메뉴 + Floating 버튼 (모바일 fallback)
+// ─────────────────────────────────────────────────────
+
+let wandRetryCount = 0;
+const WAND_MAX_RETRIES = 30;
+
 export function addMenuEntry() {
+    addWandMenuEntry();
+    addFloatingButton();
+}
+
+function addWandMenuEntry() {
     const menu = document.getElementById('extensionsMenu');
-    if (!menu) {
-        setTimeout(addMenuEntry, 500);
+    if (menu) {
+        if (document.getElementById('gwak-menu-entry')) return;
+        const item = document.createElement('div');
+        item.id = 'gwak-menu-entry';
+        item.classList.add('list-group-item', 'flex-container', 'flexGap5');
+        item.style.cursor = 'pointer';
+        item.innerHTML = `<span style="font-size:1.1em;">🐗</span><span>곽두철</span>`;
+        item.addEventListener('click', () => {
+            togglePanel();
+            if (window.jQuery) window.jQuery('#extensionsMenu').fadeOut(200);
+        });
+        menu.appendChild(item);
+        console.log('[곽두철] wand 메뉴에 항목 추가됨');
         return;
     }
-    if (document.getElementById('gwak-menu-entry')) return;
+    if (wandRetryCount < WAND_MAX_RETRIES) {
+        wandRetryCount++;
+        setTimeout(addWandMenuEntry, 500);
+    } else {
+        console.warn('[곽두철] wand 메뉴 못 찾음 — floating 버튼만 사용');
+    }
+}
 
-    const item = document.createElement('div');
-    item.id = 'gwak-menu-entry';
-    item.classList.add('list-group-item', 'flex-container', 'flexGap5');
-    item.style.cursor = 'pointer';
-    item.innerHTML = `<span style="font-size:1.1em;">🐗</span><span>곽두철</span>`;
-    item.addEventListener('click', () => {
-        togglePanel();
-        if (window.jQuery) window.jQuery('#extensionsMenu').fadeOut(200);
-    });
-    menu.appendChild(item);
+function addFloatingButton() {
+    if (document.getElementById('gwak-fab')) return;
+
+    const fab = document.createElement('button');
+    fab.id = 'gwak-fab';
+    fab.title = '🐗 곽두철';
+    fab.innerHTML = '🐗';
+    document.body.appendChild(fab);
+
+    makeFabDraggable(fab);
+    console.log('[곽두철] floating 버튼 추가됨 (드래그 가능)');
+}
+
+function makeFabDraggable(fab) {
+    let isDragging = false;
+    let hasMoved = false;
+    let startX, startY, startLeft, startTop;
+
+    function start(clientX, clientY) {
+        const rect = fab.getBoundingClientRect();
+        startLeft = rect.left;
+        startTop = rect.top;
+        startX = clientX;
+        startY = clientY;
+        isDragging = true;
+        hasMoved = false;
+    }
+
+    function move(clientX, clientY) {
+        if (!isDragging) return;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        if (!hasMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) hasMoved = true;
+        if (hasMoved) {
+            fab.style.left = (startLeft + dx) + 'px';
+            fab.style.top = (startTop + dy) + 'px';
+            fab.style.right = 'auto';
+            fab.style.bottom = 'auto';
+        }
+    }
+
+    function end() {
+        if (isDragging && !hasMoved) {
+            togglePanel();
+        }
+        isDragging = false;
+    }
+
+    fab.addEventListener('mousedown', (e) => { e.preventDefault(); start(e.clientX, e.clientY); });
+    document.addEventListener('mousemove', (e) => move(e.clientX, e.clientY));
+    document.addEventListener('mouseup', end);
+
+    fab.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        start(t.clientX, t.clientY);
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        const t = e.touches[0];
+        move(t.clientX, t.clientY);
+    }, { passive: true });
+    document.addEventListener('touchend', end);
 }
 
 window.gwak = window.gwak || {};
