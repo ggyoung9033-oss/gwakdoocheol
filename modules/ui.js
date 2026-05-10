@@ -19,32 +19,14 @@ import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from '
  * 솔로 캐릭터: 캐릭터 이름 + chat 파일 이름
  * fallback: 'no_chat' (ST가 chat 안 잡힐 때)
  */
-/**
- * 현재 ST chat 식별자 — chat_metadata에 자체 UUID 박는 방식.
- * ST가 chat 파일별로 metadata 따로 저장하므로 무조건 다른 chat은 다른 key.
- */
 function getCurrentChatKey() {
     try {
         const ctx = SillyTavern.getContext();
-        if (!ctx) return 'no_chat';
-
-        if (ctx.chat_metadata) {
-            if (!ctx.chat_metadata.gwakdoocheol_chat_id) {
-                ctx.chat_metadata.gwakdoocheol_chat_id = 'gwak_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-                console.log('[곽두철] 새 chat ID 발급:', ctx.chat_metadata.gwakdoocheol_chat_id);
-                if (typeof ctx.saveMetadataDebounced === 'function') ctx.saveMetadataDebounced();
-                else if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
-            }
-            return ctx.chat_metadata.gwakdoocheol_chat_id;
-        }
-
-        // fallback
         if (ctx.groupId) return `group_${ctx.groupId}`;
         const charName = ctx.name2 || 'no_char';
         const chatName = ctx.characters?.[ctx.characterId]?.chat || 'no_chat';
         return `char_${charName}__${chatName}`;
     } catch (e) {
-        console.error('[곽두철] getCurrentChatKey 에러:', e);
         return 'no_chat';
     }
 }
@@ -92,7 +74,7 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
-                <button class="gwak-btn gwak-btn-icon" data-action="minimize" title="최소화">⬇</button>
+                <button class="gwak-btn gwak-btn-icon" data-action="minimize" title="최소화">▼</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
             </div>
         </div>
@@ -145,7 +127,6 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-primary" data-action="save-note">💾 저장 & 적용</button>
             </div>
         </div>
-        <div class="gwak-resize-handle" title="크기 조절"></div>
     `;
 
     document.body.appendChild(panel);
@@ -183,71 +164,8 @@ function createPanel() {
     resizeObserver.observe(panel);
 
     makeDraggable(panel);
-    makeResizable(panel);
 
     return panel;
-}
-
-/**
- * JS resize 핸들 — CSS resize:both이 모바일 안드로이드에서 핸들 안 그리는 문제 해결.
- * 우하단 큰 핸들 + mousedown/touchstart 드래그.
- */
-function makeResizable(el) {
-    const handle = el.querySelector('.gwak-resize-handle');
-    if (!handle) return;
-
-    let isResizing = false;
-    let startX, startY, startW, startH;
-
-    function startResize(clientX, clientY) {
-        isResizing = true;
-        startX = clientX;
-        startY = clientY;
-        startW = el.offsetWidth;
-        startH = el.offsetHeight;
-    }
-
-    function moveResize(clientX, clientY) {
-        if (!isResizing) return;
-        const isMobile = window.innerWidth <= 768;
-        const maxW = isMobile ? window.innerWidth * 0.95 : window.innerWidth - 20;
-        const maxH = isMobile ? window.innerHeight * 0.85 : window.innerHeight - 20;
-        const newW = Math.max(240, Math.min(maxW, startW + (clientX - startX)));
-        const newH = Math.max(200, Math.min(maxH, startH + (clientY - startY)));
-        el.style.width = newW + 'px';
-        el.style.height = newH + 'px';
-        el.style.maxWidth = 'none';
-        el.style.maxHeight = 'none';
-    }
-
-    function endResize() {
-        if (!isResizing) return;
-        isResizing = false;
-        const s = loadSettings();
-        s.panelWidth = el.offsetWidth;
-        s.panelHeight = el.offsetHeight;
-        saveSettings(s);
-    }
-
-    handle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        startResize(e.clientX, e.clientY);
-    });
-    document.addEventListener('mousemove', (e) => moveResize(e.clientX, e.clientY));
-    document.addEventListener('mouseup', endResize);
-
-    handle.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const t = e.touches[0];
-        startResize(t.clientX, t.clientY);
-    }, { passive: false });
-    document.addEventListener('touchmove', (e) => {
-        if (!isResizing) return;
-        e.preventDefault();
-        const t = e.touches[0];
-        moveResize(t.clientX, t.clientY);
-    }, { passive: false });
-    document.addEventListener('touchend', endResize);
 }
 
 function handlePanelClick(e) {
@@ -274,7 +192,7 @@ function toggleMinimize() {
     const isMin = panel.classList.toggle('gwak-minimized');
     const btn = panel.querySelector('[data-action="minimize"]');
     if (btn) {
-        btn.textContent = isMin ? '⬆' : '⬇';
+        btn.textContent = isMin ? '▲' : '▼';
         btn.title = isMin ? '펼치기' : '최소화';
     }
 }
