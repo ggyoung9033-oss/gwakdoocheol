@@ -599,17 +599,18 @@ export function togglePanel() {
  * ST 채팅이 바뀌면 (다른 캐릭터 / 새 chat) 곽두철 패널도 자동으로 그 chat의 히스토리로 전환.
  * 패널 닫혀 있어도 OK — 다음에 열 때 자동으로 현재 chat의 히스토리.
  */
+// ui.js 내 setupChatChangeListener 수정
 export function setupChatChangeListener() {
     try {
         const ctx = SillyTavern.getContext();
         if (ctx.eventSource && ctx.event_types?.CHAT_CHANGED) {
-            ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => {
-                if (panel && panel.style.display === 'flex') {
-                    loadHistory();
-                    console.log('[곽두철] ST chat 전환 → 히스토리 재로드 (key:', getCurrentChatKey() + ')');
+            ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, async () => {
+                console.log('[곽두철] 채팅 전환 감지! 새 ID로 히스토리 교체 작업 시작');
+                // 패널이 열려있든 닫혀있든, 현재 메모리 상의 데이터를 새 채팅걸로 강제 전환
+                if (panel) {
+                    await loadHistory(); 
                 }
             });
-            console.log('[곽두철] CHAT_CHANGED listener 등록');
         }
     } catch (e) {
         console.warn('[곽두철] CHAT_CHANGED listener 실패:', e);
