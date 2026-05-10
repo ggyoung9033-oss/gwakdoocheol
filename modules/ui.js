@@ -370,8 +370,47 @@ export function togglePanel() {
 }
 
 // ─────────────────────────────────────────────────────
-// 진입점 — Wand 메뉴 + Floating 버튼 (모바일 fallback)
+// 진입점 — ST Extensions 카드 + Wand 메뉴 + Floating 버튼
+// 모바일에서도 무조건 진입 가능하도록 3중 진입점
 // ─────────────────────────────────────────────────────
+
+/**
+ * ST 익스텐션 설정 페이지(#extensions_settings)에 미니멀 카드 추가.
+ * 카드 안에는 "🐗 곽두철 열기" 버튼 하나만. 정보 노출 X.
+ * → 모바일 진입점 보장 (ST 설정 → Extensions 탭에 무조건 보임)
+ */
+export function setupExtensionCard() {
+    if (document.getElementById('gwak-ext-card')) return;
+    const container = document.getElementById('extensions_settings');
+    if (!container) {
+        // ST 설정 페이지 아직 로드 안 됨 → 재시도
+        setTimeout(setupExtensionCard, 1000);
+        return;
+    }
+
+    const html = `
+    <div id="gwak-ext-card" class="inline-drawer">
+        <div class="inline-drawer-header inline-drawer-toggle interactable" tabindex="0">
+            <b>🐗 곽두철</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content" style="display: none; padding: 10px;">
+            <div style="margin-bottom: 10px; opacity: 0.8; font-size: 0.9em;">
+                RP 컨설턴트. 채팅 분석 · 진행 의논 · 캐릭터 역학 짚기.
+            </div>
+            <button id="gwak-ext-open-btn" class="menu_button" style="width: 100%;">
+                🐗 곽두철 열기
+            </button>
+        </div>
+    </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', html);
+    document.getElementById('gwak-ext-open-btn').addEventListener('click', () => {
+        togglePanel();
+    });
+    console.log('[곽두철] ST Extensions 카드 추가됨');
+}
 
 let wandRetryCount = 0;
 const WAND_MAX_RETRIES = 30;
@@ -471,4 +510,4 @@ function makeFabDraggable(fab) {
 }
 
 window.gwak = window.gwak || {};
-window.gwak.ui = { showPanel, hidePanel, togglePanel, addMenuEntry };
+window.gwak.ui = { showPanel, hidePanel, togglePanel, addMenuEntry, setupExtensionCard };
