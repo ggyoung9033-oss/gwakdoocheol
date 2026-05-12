@@ -13,8 +13,31 @@ import {
 import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
 
-const GWAK_KEY = '__gwak_global__';
+const GWAK_KEY = '__gwak_global__'; // 구버전 호환 — 코드에서 직접 사용 X
 const SETTINGS_KEY = 'gwak_settings_v1';
+
+/**
+ * 현재 ST 채팅별 곽두철 히스토리 키.
+ * ST의 chatId 우선 사용 — 디스크에 ST가 영속 저장하므로 metadata flush 걱정 X.
+ * 그룹챗은 groupId fallback. ST chat 없으면 'no_chat'.
+ */
+function getCurrentChatKey() {
+    try {
+        const ctx = SillyTavern.getContext();
+        if (!ctx) return 'no_chat';
+
+        if (ctx.chatId) return `chat_${ctx.chatId}`;
+        if (typeof ctx.getCurrentChatId === 'function') {
+            const id = ctx.getCurrentChatId();
+            if (id) return `chat_${id}`;
+        }
+        if (ctx.groupId) return `group_${ctx.groupId}`;
+        return 'no_chat';
+    } catch (e) {
+        console.error('[곽두철] getCurrentChatKey 에러:', e);
+        return 'no_chat';
+    }
+}
 
 let panel = null;
 let isLoading = false;
@@ -260,12 +283,12 @@ async function handleSend() {
     isLoading = true;
 
     renderMessage({ role: 'user', content: userInput });
-    await dbAppendMessage(GWAK_KEY, { role: 'user', content: userInput }, {});
+    await dbAppendMessage(getCurrentChatKey(), { role: 'user', content: userInput }, {});
 
     const loadingEl = renderLoading();
 
     try {
-        const record = await dbGetHistory(GWAK_KEY);
+        const record = await dbGetHistory(getCurrentChatKey());
         const history = (record?.messages || []).slice(0, -1);
 
         const settings = loadSettings();
@@ -284,7 +307,7 @@ async function handleSend() {
 
         loadingEl.remove();
         renderMessage({ role: 'assistant', content: reply });
-        await dbAppendMessage(GWAK_KEY, { role: 'assistant', content: reply }, {});
+        await dbAppendMessage(getCurrentChatKey(), { role: 'assistant', content: reply }, {});
     } catch (err) {
         loadingEl.remove();
         renderError(err?.message || String(err));
@@ -296,7 +319,7 @@ async function handleSend() {
 
 async function handleReset() {
     if (!confirm('곽두철과의 모든 대화를 진짜 리셋할까? (복구 안 됨)')) return;
-    await dbDeleteHistory(GWAK_KEY);
+    await dbDeleteHistory(getCurrentChatKey());
     panel.querySelector('#gwak-thread').innerHTML = '';
     renderMessage({
         role: 'assistant',
@@ -436,7 +459,7 @@ function renderError(msg) {
 
 async function loadHistory() {
     try {
-        const record = await dbGetHistory(GWAK_KEY);
+        const record = await dbGetHistory(getCurrentChatKey());
         const thread = panel.querySelector('#gwak-thread');
         thread.innerHTML = '';
         if (!record || !record.messages?.length) {
@@ -511,6 +534,27 @@ export function hidePanel() {
 export function togglePanel() {
     if (!panel || panel.style.display === 'none') showPanel();
     else hidePanel();
+}
+
+/**
+ * ST 채팅이 바뀌면 (다른 캐릭터 / 새 chat) 곽두철 패널도 자동으로 그 chat의 히스토리로 전환.
+ * 패널 닫혀 있어도 OK — 다음에 열 때 자동으로 현재 chat의 히스토리.
+ */
+export function setupChatChangeListener() {
+    try {
+        const ctx = SillyTavern.getContext();
+        if (ctx.eventSource && ctx.event_types?.CHAT_CHANGED) {
+            ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => {
+                if (panel && panel.style.display === 'flex') {
+                    loadHistory();
+                    console.log('[곽두철] ST chat 전환 → 히스토리 재로드 (key:', getCurrentChatKey() + ')');
+                }
+            });
+            console.log('[곽두철] CHAT_CHANGED listener 등록');
+        }
+    } catch (e) {
+        console.warn('[곽두철] CHAT_CHANGED listener 실패:', e);
+    }
 }
 
 // ─────────────────────────────────────────────────────
@@ -718,4 +762,4 @@ function makeFabDraggable(fab) {
 }
 
 window.gwak = window.gwak || {};
-window.gwak.ui = { showPanel, hidePanel, togglePanel, addMenuEntry, setupExtensionCard };
+window.gwak.ui = { showPanel, hidePanel, togglePanel, addMenuEntry, setupExtensionCard, setupChatChangeListener };
