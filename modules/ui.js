@@ -32,11 +32,10 @@ function loadSettings() {
                 opacity: s.opacity ?? 100,
                 panelWidth: s.panelWidth ?? 380,
                 panelHeight: s.panelHeight ?? 540,
-                compactMode: s.compactMode ?? false,
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540, compactMode: false };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540 };
 }
 
 function saveSettings(s) {
@@ -57,7 +56,6 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
-                <button class="gwak-btn gwak-btn-icon" data-action="toggle-compact" title="작은 모드">⬇</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
             </div>
         </div>
@@ -135,24 +133,16 @@ function createPanel() {
         saveSettings(s);
     });
 
-    // 모바일은 inline 사이즈 절대 안 박음 — CSS !important가 두 모드 다 처리
-    const isMobileInit = window.innerWidth <= 768;
-    if (isMobileInit) {
-        if (initialSettings.compactMode) {
-            panel.classList.add('gwak-compact');
-            const tBtn = panel.querySelector('[data-action="toggle-compact"]');
-            if (tBtn) { tBtn.textContent = '⬆'; tBtn.title = '풀스크린'; }
-        }
-    } else {
-        if (initialSettings.panelWidth) panel.style.width = initialSettings.panelWidth + 'px';
-        if (initialSettings.panelHeight) panel.style.height = initialSettings.panelHeight + 'px';
-    }
+    // 저장된 크기 복원 (모바일 풀스크린은 미디어 쿼리가 처리)
+    if (initialSettings.panelWidth) panel.style.width = initialSettings.panelWidth + 'px';
+    if (initialSettings.panelHeight) panel.style.height = initialSettings.panelHeight + 'px';
 
-    // 크기 변경 감지 (debounce — PC에서만 저장)
+    // 크기 변경 감지 (debounce — 드래그 중 매 프레임 호출 방지)
     let resizeSaveTimer = null;
     const resizeObserver = new ResizeObserver(() => {
         clearTimeout(resizeSaveTimer);
         resizeSaveTimer = setTimeout(() => {
+            // 모바일은 저장 안 함 (풀스크린이라 의미 X)
             if (window.innerWidth > 768) {
                 const s = loadSettings();
                 s.panelWidth = panel.offsetWidth;
@@ -168,32 +158,11 @@ function createPanel() {
     return panel;
 }
 
-/**
- * 풀스크린 ↔ 작은 모드 전환. 모바일에서만 의미 있음.
- * 모드는 CSS class로만 통제 — inline style 안 박음 (안 사라지게 보장).
- */
-function toggleCompactMode() {
-    if (!panel) return;
-    const wasCompact = panel.classList.contains('gwak-compact');
-    panel.classList.toggle('gwak-compact');
-
-    const btn = panel.querySelector('[data-action="toggle-compact"]');
-    if (btn) {
-        btn.textContent = wasCompact ? '⬇' : '⬆';
-        btn.title = wasCompact ? '작은 모드' : '풀스크린';
-    }
-
-    const s = loadSettings();
-    s.compactMode = !wasCompact;
-    saveSettings(s);
-}
-
 function handlePanelClick(e) {
     const action = e.target.closest('[data-action]')?.dataset?.action;
     if (!action) return;
     switch (action) {
         case 'close': hidePanel(); break;
-        case 'toggle-compact': toggleCompactMode(); break;
         case 'send': handleSend(); break;
         case 'reset': handleReset(); break;
         case 'settings': toggleSettings(); break;
