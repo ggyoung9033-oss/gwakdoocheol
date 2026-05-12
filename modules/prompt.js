@@ -6,7 +6,7 @@ import { DEFAULT_PERSONA } from './persona.js';
 
 function formatRpContext(rpData) {
     const parts = [];
-    parts.push('[이하 정보는 너의 내부 분석 자료다. {{user}}는 이미 다 알고 있는 것들이니 답변에 그대로 옮기거나 인용하지 말 것. 분석/판단/제안의 근거로만 활용해서 핵심만 짧게 짚어줘.]');
+    parts.push('[내부 자료. 그대로 옮기지 X. 분석 근거로만.]');
     parts.push('');
 
     if (rpData.charSheet) {
