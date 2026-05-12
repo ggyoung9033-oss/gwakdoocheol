@@ -1,17 +1,15 @@
 // 🐗 곽두철 — 메시지 빌더
-// 시스템 프롬프트 + RP 컨텍스트(내부 분석 자료) + 곽두철 ↔ 사용자 히스토리 + 사용자 새 입력
+// 시스템 프롬프트 + RP 컨텍스트 + 곽두철 ↔ 사용자 히스토리 + 사용자 새 입력
 
 import { gather } from './context.js';
 import { DEFAULT_PERSONA } from './persona.js';
 
 function formatRpContext(rpData) {
     const parts = [];
-    parts.push('[내부 자료. 그대로 옮기지 X. 분석 근거로만.]');
-    parts.push('');
 
     if (rpData.charSheet) {
         const cs = rpData.charSheet;
-        parts.push('## 캐릭터(NPC) 시트');
+        parts.push('## 캐릭터(NPC) 정보');
         parts.push(`이름: ${cs.name}`);
         if (cs.description) parts.push(`설명:\n${cs.description}`);
         if (cs.personality) parts.push(`성격:\n${cs.personality}`);
@@ -28,19 +26,19 @@ function formatRpContext(rpData) {
 
     const wi = rpData.worldInfo;
     if (wi?.entries?.length > 0) {
-        parts.push('\n## 활성 로어북 (참고만)');
+        parts.push('\n## 활성 로어북');
         wi.entries.forEach((e, i) => {
             parts.push(`[${i + 1}] ${e.comment || e.key}`);
             parts.push(e.content);
         });
     } else if (wi?.worldInfoBefore || wi?.worldInfoAfter) {
-        parts.push('\n## 로어북 컨텍스트 (참고만)');
+        parts.push('\n## 로어북 컨텍스트');
         if (wi.worldInfoBefore) parts.push(wi.worldInfoBefore);
         if (wi.worldInfoAfter) parts.push(wi.worldInfoAfter);
     }
 
     if (rpData.recentChat?.length > 0) {
-        parts.push('\n## 최근 RP 채팅 (시간순) — 흐름 파악용');
+        parts.push('\n## 최근 채팅 (시간순)');
         rpData.recentChat.forEach(m => {
             parts.push(`${m.name} (${m.role}): ${m.content}`);
         });
@@ -64,9 +62,9 @@ export async function buildMessages({
 
     const personaResolved = persona.replace(/\{\{user\}\}/g, userName);
     const rpData = await gather(contextOptions);
-    const rpBlock = formatRpContext(rpData).replace(/\{\{user\}\}/g, userName);
+    const rpBlock = formatRpContext(rpData);
 
-    const systemContent = `${personaResolved}\n\n---\n\n# 현재 RP 컨텍스트 (내부 분석 자료)\n\n${rpBlock}`;
+    const systemContent = `${personaResolved}\n\n---\n\n# 현재 RP 컨텍스트\n\n${rpBlock}`;
 
     const messages = [
         { role: 'system', content: systemContent },

@@ -8,8 +8,8 @@
     max-width: 95vw;
     height: 540px;
     max-height: 90vh;
-    min-width: 200px;
-    min-height: 180px;
+    min-width: 280px;
+    min-height: 320px;
     background: var(--SmartThemeBlurTintColor, #1b2a44);
     color: var(--SmartThemeBodyColor, #d8e4f5);
     border: 1px solid #4a90e2;
@@ -23,87 +23,59 @@
     overflow: hidden;
     opacity: var(--gwak-panel-opacity, 1);
     transition: opacity 0.15s ease;
-    /* resize: JS 핸들로 처리 */
+    resize: both;
 }
 
-/* 모바일 — 우하단 자유 사이즈 */
+/* 모바일 — 풀스크린 + resize 비활성화 */
 @media (max-width: 768px) {
     #gwak-panel {
-        bottom: 10px;
-        right: 10px;
-        left: auto;
-        top: auto;
-        width: 95vw;
-        max-width: 95vw;
-        height: 70vh;
-        max-height: 90vh;
-        height: 70dvh;
-        max-height: 90dvh;
-        min-width: 140px;
-        min-height: 100px;
-        border-radius: 12px;
-        border: 1px solid #4a90e2;
-    }
-    /* 모바일 핸들 더 크게 (터치 친화) */
-    .gwak-resize-handle {
-        width: 48px !important;
-        height: 48px !important;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        min-width: 100vw;
+        min-height: 100vh;
+        border-radius: 0;
+        border: none;
+        resize: none;
     }
 }
 
-/* 우하단 resize 핸들 — JS로 직접 그림 (CSS resize는 모바일 안 잡혀서) */
-.gwak-resize-handle {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    width: 24px;
-    height: 24px;
-    cursor: nwse-resize;
-    background: linear-gradient(135deg,
-        transparent 50%,
-        rgba(255, 255, 255, 0.5) 50%,
-        rgba(255, 255, 255, 0.5) 60%,
-        transparent 60%,
-        transparent 70%,
-        rgba(255, 255, 255, 0.5) 70%,
-        rgba(255, 255, 255, 0.5) 80%,
-        transparent 80%);
-    border-bottom-right-radius: 12px;
-    z-index: 3;
-    touch-action: none;
-    user-select: none;
+/* 투명도 슬라이더 (헤더에 박힘) */
+.gwak-opacity-slider {
+    width: 70px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-right: 4px;
 }
-#gwak-panel.gwak-minimized .gwak-resize-handle {
-    display: none !important;
+.gwak-opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 1px solid rgba(74, 144, 226, 0.5);
 }
-
-/* Minimize 모드 — 헤더만 작게 띄움, 채팅 중 방해 안 되게 */
-#gwak-panel.gwak-minimized {
-    width: auto !important;
-    min-width: 0 !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-
-}
-#gwak-panel.gwak-minimized .gwak-panel-body {
-    display: none !important;
-}
-#gwak-panel.gwak-minimized .gwak-panel-controls > *:not([data-action="minimize"]):not([data-action="close"]) {
-    display: none;
-}
-#gwak-panel.gwak-minimized .gwak-panel-title {
-    font-size: 0.9em;
-}
-
-/* 투명도 표시 (헤더 +/- 사이) */
-.gwak-opacity-display {
-    font-size: 0.78em;
-    opacity: 0.85;
-    min-width: 36px;
-    text-align: center;
-    user-select: none;
-    color: #fff;
+.gwak-opacity-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 1px solid rgba(74, 144, 226, 0.5);
 }
 
 .gwak-panel-header {
@@ -276,6 +248,17 @@
     gap: 8px;
     justify-content: flex-end;
     margin-top: 4px;
+}
+
+/* 모바일 */
+@media (max-width: 600px) {
+    #gwak-panel {
+        width: calc(100vw - 16px);
+        height: 75vh;
+        bottom: 8px;
+        right: 8px;
+        left: 8px;
+    }
 }
 
 /* 프로필 드롭다운 inline */

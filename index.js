@@ -15,7 +15,7 @@ import './modules/context.js';
 import './modules/prompt.js';
 import './modules/api.js';
 import { reapplyOnLoad as reapplyNote } from './modules/note.js';
-import { addMenuEntry, setupExtensionCard, setupChatChangeListener } from './modules/ui.js';
+import { addMenuEntry, setupExtensionCard } from './modules/ui.js';
 
 const EXT_NAME = 'gwakdoocheol';
 const stContext = getContext();
@@ -27,9 +27,6 @@ jQuery(async () => {
     // 진입점 3중 — 어느 환경에서든 진입 가능
     setupExtensionCard();   // ST 설정 → Extensions 탭 (모바일 진입점 핵심)
     addMenuEntry();          // Wand 메뉴(✨) + 우하단 floating 🐗 버튼
-
-    // ST 채팅 바뀌면 곽두철 히스토리도 자동 전환
-    setupChatChangeListener();
 
     // 저장된 RP 노트가 있으면 ST에 다시 인젝트 (페이지 로드 후 복원)
     try { reapplyNote(); } catch (e) { console.warn('[곽두철] 노트 reapply 실패:', e); }

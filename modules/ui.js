@@ -13,41 +13,7 @@ import {
 import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
 
-/**
- * 현재 ST 채팅 식별자 — 채팅별 곽두철 스레드 분리용.
- * 그룹 채팅: group ID
- * 솔로 캐릭터: 캐릭터 이름 + chat 파일 이름
- * fallback: 'no_chat' (ST가 chat 안 잡힐 때)
- */
-/**
- * 현재 ST chat 식별자 — chat_metadata에 자체 UUID 박는 방식.
- * ST가 chat 파일별로 metadata 따로 저장하므로 무조건 다른 chat은 다른 key.
- */
-function getCurrentChatKey() {
-    try {
-        const ctx = SillyTavern.getContext();
-        if (!ctx) return 'no_chat';
-
-        if (ctx.chat_metadata) {
-            if (!ctx.chat_metadata.gwakdoocheol_chat_id) {
-                ctx.chat_metadata.gwakdoocheol_chat_id = 'gwak_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-                console.log('[곽두철] 새 chat ID 발급:', ctx.chat_metadata.gwakdoocheol_chat_id);
-                if (typeof ctx.saveMetadataDebounced === 'function') ctx.saveMetadataDebounced();
-                else if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
-            }
-            return ctx.chat_metadata.gwakdoocheol_chat_id;
-        }
-
-        // fallback
-        if (ctx.groupId) return `group_${ctx.groupId}`;
-        const charName = ctx.name2 || 'no_char';
-        const chatName = ctx.characters?.[ctx.characterId]?.chat || 'no_chat';
-        return `char_${charName}__${chatName}`;
-    } catch (e) {
-        console.error('[곽두철] getCurrentChatKey 에러:', e);
-        return 'no_chat';
-    }
-}
+const GWAK_KEY = '__gwak_global__';
 const SETTINGS_KEY = 'gwak_settings_v1';
 
 let panel = null;
@@ -61,17 +27,15 @@ function loadSettings() {
             return {
                 recentChatN: s.recentChatN ?? 10,
                 systemPrompt: s.systemPrompt || DEFAULT_PERSONA,
-                maxTokens: s.maxTokens ?? 8192,
+                maxTokens: s.maxTokens ?? 1024,
                 profileId: s.profileId || '',
                 opacity: s.opacity ?? 100,
                 panelWidth: s.panelWidth ?? 380,
                 panelHeight: s.panelHeight ?? 540,
-                panelWidthMobile: s.panelWidthMobile ?? null,
-                panelHeightMobile: s.panelHeightMobile ?? null,
             };
         }
     } catch (e) {}
-    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 8192, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540, panelWidthMobile: null, panelHeightMobile: null };
+    return { recentChatN: 10, systemPrompt: DEFAULT_PERSONA, maxTokens: 1024, profileId: '', opacity: 100, panelWidth: 380, panelHeight: 540 };
 }
 
 function saveSettings(s) {
@@ -88,13 +52,10 @@ function createPanel() {
         <div class="gwak-panel-header">
             <span class="gwak-panel-title">🐗 곽두철</span>
             <div class="gwak-panel-controls">
-                <button class="gwak-btn gwak-btn-icon" data-action="opacity-down" title="투명도 ↓">🔅</button>
-                <span class="gwak-opacity-display" title="패널 투명도">100%</span>
-                <button class="gwak-btn gwak-btn-icon" data-action="opacity-up" title="투명도 ↑">🔆</button>
+                <input type="range" class="gwak-opacity-slider" min="20" max="100" value="100" title="투명도">
                 <button class="gwak-btn gwak-btn-icon" data-action="note" title="RP 노트">📝</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="settings" title="설정">⚙️</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="reset" title="히스토리 리셋">🔄</button>
-                <button class="gwak-btn gwak-btn-icon" data-action="minimize" title="최소화">⬇</button>
                 <button class="gwak-btn gwak-btn-icon" data-action="close" title="닫기">✕</button>
             </div>
         </div>
@@ -116,7 +77,7 @@ function createPanel() {
             </label>
             <label class="gwak-field">
                 <span>최대 응답 토큰</span>
-                <input type="number" id="gwak-max-tokens" min="128" max="32768" step="128" value="8192">
+                <input type="number" id="gwak-max-tokens" min="128" max="32768" step="128" value="1024">
             </label>
             <label class="gwak-field">
                 <span>최근 채팅 메시지 N개 (RP 컨텍스트)</span>
@@ -147,7 +108,6 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-primary" data-action="save-note">💾 저장 & 적용</button>
             </div>
         </div>
-        <div class="gwak-resize-handle" title="크기 조절"></div>
     `;
 
     document.body.appendChild(panel);
@@ -160,111 +120,42 @@ function createPanel() {
         saveSettings(s);
     });
 
-    // 투명도 (+/-) 버튼
-    const opacityDisplay = panel.querySelector('.gwak-opacity-display');
+    // 투명도 슬라이더
+    const opacitySlider = panel.querySelector('.gwak-opacity-slider');
     const initialSettings = loadSettings();
-    const initOpacity = initialSettings.opacity ?? 100;
-    panel.style.setProperty('--gwak-panel-opacity', initOpacity / 100);
-    opacityDisplay.textContent = initOpacity + '%';
+    opacitySlider.value = initialSettings.opacity;
+    panel.style.setProperty('--gwak-panel-opacity', initialSettings.opacity / 100);
+    opacitySlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        panel.style.setProperty('--gwak-panel-opacity', val / 100);
+        const s = loadSettings();
+        s.opacity = val;
+        saveSettings(s);
+    });
 
-    // 저장된 크기 복원 — 모바일/PC 분리 (PC 사이즈가 모바일에 강제 적용되던 버그 수정)
-    const isMobileOnInit = window.innerWidth <= 768;
-    const initW = isMobileOnInit ? initialSettings.panelWidthMobile : initialSettings.panelWidth;
-    const initH = isMobileOnInit ? initialSettings.panelHeightMobile : initialSettings.panelHeight;
-    if (initW) panel.style.width = initW + 'px';
-    if (initH) panel.style.height = initH + 'px';
+    // 저장된 크기 복원 (모바일 풀스크린은 미디어 쿼리가 처리)
+    if (initialSettings.panelWidth) panel.style.width = initialSettings.panelWidth + 'px';
+    if (initialSettings.panelHeight) panel.style.height = initialSettings.panelHeight + 'px';
 
     // 크기 변경 감지 (debounce — 드래그 중 매 프레임 호출 방지)
     let resizeSaveTimer = null;
     const resizeObserver = new ResizeObserver(() => {
         clearTimeout(resizeSaveTimer);
         resizeSaveTimer = setTimeout(() => {
-            const s = loadSettings();
-            const isMobile = window.innerWidth <= 768;
-            if (isMobile) {
-                s.panelWidthMobile = panel.offsetWidth;
-                s.panelHeightMobile = panel.offsetHeight;
-            } else {
+            // 모바일은 저장 안 함 (풀스크린이라 의미 X)
+            if (window.innerWidth > 768) {
+                const s = loadSettings();
                 s.panelWidth = panel.offsetWidth;
                 s.panelHeight = panel.offsetHeight;
+                saveSettings(s);
             }
-            saveSettings(s);
         }, 300);
     });
     resizeObserver.observe(panel);
 
     makeDraggable(panel);
-    makeResizable(panel);
 
     return panel;
-}
-
-/**
- * JS resize 핸들 — CSS resize:both이 모바일 안드로이드에서 핸들 안 그리는 문제 해결.
- * 우하단 큰 핸들 + mousedown/touchstart 드래그.
- */
-function makeResizable(el) {
-    const handle = el.querySelector('.gwak-resize-handle');
-    if (!handle) return;
-
-    let isResizing = false;
-    let startX, startY, startW, startH;
-
-    function startResize(clientX, clientY) {
-        isResizing = true;
-        startX = clientX;
-        startY = clientY;
-        startW = el.offsetWidth;
-        startH = el.offsetHeight;
-    }
-
-    function moveResize(clientX, clientY) {
-        if (!isResizing) return;
-        const isMobile = window.innerWidth <= 768;
-        const maxW = isMobile ? window.innerWidth * 0.95 : window.innerWidth - 20;
-        const maxH = isMobile ? window.innerHeight * 0.85 : window.innerHeight - 20;
-        const newW = Math.max(120, Math.min(maxW, startW + (clientX - startX)));
-        const newH = Math.max(120, Math.min(maxH, startH + (clientY - startY)));
-        el.style.width = newW + 'px';
-        el.style.height = newH + 'px';
-        el.style.maxWidth = 'none';
-        el.style.maxHeight = 'none';
-    }
-
-    function endResize() {
-        if (!isResizing) return;
-        isResizing = false;
-        const s = loadSettings();
-        const isMobile = window.innerWidth <= 768;
-        if (isMobile) {
-            s.panelWidthMobile = el.offsetWidth;
-            s.panelHeightMobile = el.offsetHeight;
-        } else {
-            s.panelWidth = el.offsetWidth;
-            s.panelHeight = el.offsetHeight;
-        }
-        saveSettings(s);
-    }
-
-    handle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        startResize(e.clientX, e.clientY);
-    });
-    document.addEventListener('mousemove', (e) => moveResize(e.clientX, e.clientY));
-    document.addEventListener('mouseup', endResize);
-
-    handle.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const t = e.touches[0];
-        startResize(t.clientX, t.clientY);
-    }, { passive: false });
-    document.addEventListener('touchmove', (e) => {
-        if (!isResizing) return;
-        e.preventDefault();
-        const t = e.touches[0];
-        moveResize(t.clientX, t.clientY);
-    }, { passive: false });
-    document.addEventListener('touchend', endResize);
 }
 
 function handlePanelClick(e) {
@@ -281,30 +172,7 @@ function handlePanelClick(e) {
         case 'note': toggleNote(); break;
         case 'save-note': handleSaveNote(); break;
         case 'clear-note': handleClearNote(); break;
-        case 'opacity-down': adjustOpacity(-10); break;
-        case 'opacity-up': adjustOpacity(+10); break;
-        case 'minimize': toggleMinimize(); break;
     }
-}
-
-function toggleMinimize() {
-    const isMin = panel.classList.toggle('gwak-minimized');
-    const btn = panel.querySelector('[data-action="minimize"]');
-    if (btn) {
-        btn.textContent = isMin ? '⬆' : '⬇';
-        btn.title = isMin ? '펼치기' : '최소화';
-    }
-}
-
-function adjustOpacity(delta) {
-    const s = loadSettings();
-    const cur = s.opacity ?? 100;
-    const newVal = Math.max(20, Math.min(100, cur + delta));
-    panel.style.setProperty('--gwak-panel-opacity', newVal / 100);
-    const display = panel.querySelector('.gwak-opacity-display');
-    if (display) display.textContent = newVal + '%';
-    s.opacity = newVal;
-    saveSettings(s);
 }
 
 function handleInputKeydown(e) {
@@ -325,12 +193,12 @@ async function handleSend() {
     isLoading = true;
 
     renderMessage({ role: 'user', content: userInput });
-    await dbAppendMessage(getCurrentChatKey(), { role: 'user', content: userInput }, {});
+    await dbAppendMessage(GWAK_KEY, { role: 'user', content: userInput }, {});
 
     const loadingEl = renderLoading();
 
     try {
-        const record = await dbGetHistory(getCurrentChatKey());
+        const record = await dbGetHistory(GWAK_KEY);
         const history = (record?.messages || []).slice(0, -1);
 
         const settings = loadSettings();
@@ -349,7 +217,7 @@ async function handleSend() {
 
         loadingEl.remove();
         renderMessage({ role: 'assistant', content: reply });
-        await dbAppendMessage(getCurrentChatKey(), { role: 'assistant', content: reply }, {});
+        await dbAppendMessage(GWAK_KEY, { role: 'assistant', content: reply }, {});
     } catch (err) {
         loadingEl.remove();
         renderError(err?.message || String(err));
@@ -361,7 +229,7 @@ async function handleSend() {
 
 async function handleReset() {
     if (!confirm('곽두철과의 모든 대화를 진짜 리셋할까? (복구 안 됨)')) return;
-    await dbDeleteHistory(getCurrentChatKey());
+    await dbDeleteHistory(GWAK_KEY);
     panel.querySelector('#gwak-thread').innerHTML = '';
     renderMessage({
         role: 'assistant',
@@ -452,7 +320,7 @@ function refreshPanelProfileDropdown() {
 
 function handleSaveSettings() {
     const recentN = parseInt(panel.querySelector('#gwak-recent-n').value) || 10;
-    const maxTokens = parseInt(panel.querySelector('#gwak-max-tokens').value) || 8192;
+    const maxTokens = parseInt(panel.querySelector('#gwak-max-tokens').value) || 1024;
     const systemPrompt = panel.querySelector('#gwak-system-prompt').value || DEFAULT_PERSONA;
     const s = loadSettings();
     saveSettings({
@@ -501,7 +369,7 @@ function renderError(msg) {
 
 async function loadHistory() {
     try {
-        const record = await dbGetHistory(getCurrentChatKey());
+        const record = await dbGetHistory(GWAK_KEY);
         const thread = panel.querySelector('#gwak-thread');
         thread.innerHTML = '';
         if (!record || !record.messages?.length) {
@@ -564,6 +432,7 @@ function makeDraggable(el) {
 export function showPanel() {
     createPanel();
     panel.style.display = 'flex';
+    panel.style.display = 'flex';
     showPane('chat');
     loadHistory();
 }
@@ -575,27 +444,6 @@ export function hidePanel() {
 export function togglePanel() {
     if (!panel || panel.style.display === 'none') showPanel();
     else hidePanel();
-}
-
-/**
- * ST 채팅이 바뀌면 (다른 캐릭터 / 새 chat) 곽두철 패널도 자동으로 그 chat의 히스토리로 전환.
- * 패널 닫혀 있어도 OK — 다음에 열 때 자동으로 현재 chat의 히스토리.
- */
-export function setupChatChangeListener() {
-    try {
-        const ctx = SillyTavern.getContext();
-        if (ctx.eventSource && ctx.event_types?.CHAT_CHANGED) {
-            ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => {
-                if (panel && panel.style.display === 'flex') {
-                    loadHistory();
-                    console.log('[곽두철] ST chat 전환 → 히스토리 재로드 (key:', getCurrentChatKey() + ')');
-                }
-            });
-            console.log('[곽두철] CHAT_CHANGED listener 등록');
-        }
-    } catch (e) {
-        console.warn('[곽두철] CHAT_CHANGED listener 실패:', e);
-    }
 }
 
 // ─────────────────────────────────────────────────────
@@ -681,7 +529,7 @@ export function setupExtensionCard() {
     document.getElementById('gwak-ext-save').addEventListener('click', () => {
         const s = loadSettings();
         s.profileId = document.getElementById('gwak-ext-profile').value;
-        s.maxTokens = parseInt(document.getElementById('gwak-ext-max-tokens').value) || 8192;
+        s.maxTokens = parseInt(document.getElementById('gwak-ext-max-tokens').value) || 1024;
         s.recentChatN = parseInt(document.getElementById('gwak-ext-recent-n').value) || 10;
         saveSettings(s);
         if (window.toastr) window.toastr.success('🐗 곽두철 설정 저장됨');
