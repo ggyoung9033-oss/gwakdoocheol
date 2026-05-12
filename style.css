@@ -26,7 +26,7 @@
     resize: both;
 }
 
-/* 모바일 — 풀스크린 + resize 비활성화 */
+/* 모바일 — 풀스크린 default (사용자 리사이즈하면 inline style이 이김) */
 @media (max-width: 768px) {
     #gwak-panel {
         bottom: 0;
@@ -39,11 +39,38 @@
         max-height: 100vh;
         height: 100dvh;
         max-height: 100dvh;
-        min-width: 100vw;
         border-radius: 0;
         border: none;
         resize: none;
     }
+    /* 모바일 핸들 — 터치 친화 큰 사이즈 */
+    .gwak-resize-handle {
+        width: 44px !important;
+        height: 44px !important;
+    }
+}
+
+/* 우하단 리사이즈 핸들 — JS로 드래그 (CSS resize는 모바일에서 핸들 안 그림) */
+.gwak-resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    height: 24px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg,
+        transparent 50%,
+        rgba(255, 255, 255, 0.5) 50%,
+        rgba(255, 255, 255, 0.5) 60%,
+        transparent 60%,
+        transparent 70%,
+        rgba(255, 255, 255, 0.5) 70%,
+        rgba(255, 255, 255, 0.5) 80%,
+        transparent 80%);
+    border-bottom-right-radius: 12px;
+    z-index: 3;
+    touch-action: none;
+    user-select: none;
 }
 
 /* 투명도 슬라이더 (헤더에 박힘) */

@@ -108,6 +108,7 @@ function createPanel() {
                 <button class="gwak-btn gwak-btn-primary" data-action="save-note">💾 저장 & 적용</button>
             </div>
         </div>
+        <div class="gwak-resize-handle" title="크기 조절"></div>
     `;
 
     document.body.appendChild(panel);
@@ -133,16 +134,21 @@ function createPanel() {
         saveSettings(s);
     });
 
-    // 저장된 크기 복원 (모바일 풀스크린은 미디어 쿼리가 처리)
-    if (initialSettings.panelWidth) panel.style.width = initialSettings.panelWidth + 'px';
-    if (initialSettings.panelHeight) panel.style.height = initialSettings.panelHeight + 'px';
+    // 저장된 크기 복원 — viewport 안에서만 (이전에 PC에서 박힌 사이즈가 모바일을 깨뜨리지 않게)
+    if (initialSettings.panelWidth) {
+        const safeW = Math.min(initialSettings.panelWidth, window.innerWidth);
+        panel.style.width = safeW + 'px';
+    }
+    if (initialSettings.panelHeight) {
+        const safeH = Math.min(initialSettings.panelHeight, window.innerHeight);
+        panel.style.height = safeH + 'px';
+    }
 
-    // 크기 변경 감지 (debounce — 드래그 중 매 프레임 호출 방지)
+    // 크기 변경 감지 (PC에서만 자동 저장 — 모바일은 makeResizable에서 명시적으로 저장)
     let resizeSaveTimer = null;
     const resizeObserver = new ResizeObserver(() => {
         clearTimeout(resizeSaveTimer);
         resizeSaveTimer = setTimeout(() => {
-            // 모바일은 저장 안 함 (풀스크린이라 의미 X)
             if (window.innerWidth > 768) {
                 const s = loadSettings();
                 s.panelWidth = panel.offsetWidth;
@@ -154,8 +160,69 @@ function createPanel() {
     resizeObserver.observe(panel);
 
     makeDraggable(panel);
+    makeResizable(panel);
 
     return panel;
+}
+
+/**
+ * 우하단 핸들 드래그로 패널 크기 조절.
+ * 모바일/PC 둘 다 작동. 사이즈는 endResize에서만 저장 (드래그 중 매 프레임 X).
+ * 최소 160×140, 최대 viewport-안전마진.
+ */
+function makeResizable(el) {
+    const handle = el.querySelector('.gwak-resize-handle');
+    if (!handle) return;
+
+    let isResizing = false;
+    let startX, startY, startW, startH;
+
+    function startResize(clientX, clientY) {
+        isResizing = true;
+        startX = clientX;
+        startY = clientY;
+        startW = el.offsetWidth;
+        startH = el.offsetHeight;
+    }
+
+    function moveResize(clientX, clientY) {
+        if (!isResizing) return;
+        const maxW = window.innerWidth - 4;
+        const maxH = window.innerHeight - 4;
+        const newW = Math.max(160, Math.min(maxW, startW + (clientX - startX)));
+        const newH = Math.max(140, Math.min(maxH, startH + (clientY - startY)));
+        el.style.width = newW + 'px';
+        el.style.height = newH + 'px';
+    }
+
+    function endResize() {
+        if (!isResizing) return;
+        isResizing = false;
+        const s = loadSettings();
+        s.panelWidth = el.offsetWidth;
+        s.panelHeight = el.offsetHeight;
+        saveSettings(s);
+    }
+
+    handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startResize(e.clientX, e.clientY);
+    });
+    document.addEventListener('mousemove', (e) => moveResize(e.clientX, e.clientY));
+    document.addEventListener('mouseup', endResize);
+
+    handle.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        startResize(t.clientX, t.clientY);
+    }, { passive: false });
+    document.addEventListener('touchmove', (e) => {
+        if (!isResizing) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        moveResize(t.clientX, t.clientY);
+    }, { passive: false });
+    document.addEventListener('touchend', endResize);
 }
 
 function handlePanelClick(e) {
