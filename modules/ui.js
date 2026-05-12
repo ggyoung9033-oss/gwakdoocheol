@@ -9,6 +9,7 @@ import {
     getHistory as dbGetHistory,
     appendMessage as dbAppendMessage,
     deleteHistory as dbDeleteHistory,
+    setHistory as dbSetHistory,
 } from './db.js';
 import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
@@ -86,6 +87,7 @@ function createPanel() {
             <div class="gwak-thread" id="gwak-thread"></div>
             <div class="gwak-input-area">
                 <textarea class="gwak-input" id="gwak-input" placeholder="곽두철한테 뭐든 떠들어봐... (Enter 전송, Shift+Enter 줄바꿈)" rows="2"></textarea>
+                <button class="gwak-btn gwak-btn-icon gwak-btn-reroll" data-action="reroll" title="마지막 응답 다시 받기">🔄</button>
                 <button class="gwak-btn gwak-btn-send" data-action="send">전송</button>
             </div>
         </div>
@@ -254,6 +256,7 @@ function handlePanelClick(e) {
     switch (action) {
         case 'close': hidePanel(); break;
         case 'send': handleSend(); break;
+        case 'reroll': handleReroll(); break;
         case 'reset': handleReset(); break;
         case 'settings': toggleSettings(); break;
         case 'save-settings': handleSaveSettings(); break;
@@ -312,6 +315,75 @@ async function handleSend() {
         loadingEl.remove();
         renderError(err?.message || String(err));
         console.error('[곽두철] send 실패:', err);
+    } finally {
+        isLoading = false;
+    }
+}
+
+/**
+ * 마지막 응답 리롤.
+ * - 마지막이 assistant → DB에서 pop + UI에서 마지막 메시지 DOM 제거 후 직전 user로 재요청
+ * - 마지막이 user (=API 오류로 응답 못 받은 케이스) → 그대로 재요청
+ * - 빈 히스토리 / 로딩 중 → 무시
+ */
+async function handleReroll() {
+    if (isLoading) return;
+    const chatKey = getCurrentChatKey();
+    const record = await dbGetHistory(chatKey);
+    const messages = record?.messages || [];
+    if (messages.length === 0) return;
+
+    const last = messages[messages.length - 1];
+    let userMessage;
+    let historyForRequest; // sendRequest에 넘길 이전 히스토리
+
+    if (last.role === 'assistant') {
+        // 마지막 assistant 제거 후 직전 user로 재요청
+        const prevUser = messages[messages.length - 2];
+        if (!prevUser || prevUser.role !== 'user') return;
+
+        // DB에서 마지막 메시지 pop (setHistory로 덮어쓰기)
+        const trimmed = messages.slice(0, -1);
+        await dbSetHistory(chatKey, trimmed);
+
+        // UI에서 마지막 메시지 DOM 제거
+        const lastEl = panel.querySelector('.gwak-thread .gwak-msg:last-child');
+        if (lastEl) lastEl.remove();
+
+        userMessage = prevUser.content;
+        historyForRequest = trimmed.slice(0, -1); // user 메시지 직전까지
+    } else if (last.role === 'user') {
+        // user 메시지 그대로 재요청 (DB 추가 X — 이미 있음)
+        userMessage = last.content;
+        historyForRequest = messages.slice(0, -1);
+    } else {
+        return;
+    }
+
+    isLoading = true;
+    const loadingEl = renderLoading();
+
+    try {
+        const settings = loadSettings();
+        const { messages: builtMessages } = await buildMessages({
+            userInput: userMessage,
+            gwakHistory: historyForRequest,
+            persona: settings.systemPrompt,
+            contextOptions: { recentChatN: settings.recentChatN },
+        });
+
+        const reply = await sendRequest(builtMessages, {
+            maxTokens: settings.maxTokens,
+            profileId: settings.profileId,
+        });
+
+        loadingEl.remove();
+        renderMessage({ role: 'assistant', content: reply });
+        await dbAppendMessage(chatKey, { role: 'assistant', content: reply }, {});
+    } catch (err) {
+        loadingEl.remove();
+        renderError(err?.message || String(err));
+        console.error('[곽두철] reroll 실패:', err);
     } finally {
         isLoading = false;
     }
@@ -495,8 +567,20 @@ function makeDraggable(el) {
     }
     function moveDrag(clientX, clientY) {
         if (!isDragging) return;
-        el.style.left = (startLeft + clientX - startX) + 'px';
-        el.style.top = (startTop + clientY - startY) + 'px';
+        let newLeft = startLeft + clientX - startX;
+        let newTop = startTop + clientY - startY;
+
+        // 안전 클램핑 — 헤더 최소 80px는 항상 viewport 안 (다시 잡을 수 있게)
+        const minVisible = 80;
+        const maxLeft = window.innerWidth - minVisible;
+        const minLeft = -(el.offsetWidth - minVisible);
+        const maxTop = window.innerHeight - minVisible;
+        const minTop = 0;
+        newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+        newTop = Math.max(minTop, Math.min(maxTop, newTop));
+
+        el.style.left = newLeft + 'px';
+        el.style.top = newTop + 'px';
     }
 
     header.addEventListener('mousedown', (e) => {

@@ -144,6 +144,14 @@
 }
 .gwak-btn-send:hover { background: #5b9eef; }
 
+.gwak-btn-reroll {
+    flex-shrink: 0;
+    background: rgba(74, 144, 226, 0.18);
+    border: 1px solid rgba(74, 144, 226, 0.4);
+    color: var(--SmartThemeBodyColor, #d8e4f5);
+}
+.gwak-btn-reroll:hover { background: rgba(74, 144, 226, 0.3); }
+
 .gwak-btn-primary { background: #4a90e2; color: #fff; border: none; }
 
 .gwak-panel-body {
