@@ -10,6 +10,7 @@ import {
     appendMessage as dbAppendMessage,
     deleteHistory as dbDeleteHistory,
     setHistory as dbSetHistory,
+    getAllHistories as dbGetAllHistories,
 } from './db.js';
 import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
@@ -116,6 +117,10 @@ function createPanel() {
                 <button class="gwak-btn" data-action="reset-prompt">기본값으로</button>
                 <button class="gwak-btn gwak-btn-primary" data-action="save-settings">저장</button>
             </div>
+            <div class="gwak-field" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <span style="font-size: 0.85em; opacity: 0.75;">분기/새 채팅으로 곽두철 히스토리가 비어버린 경우, 다른 채팅의 히스토리를 가져올 수 있음.</span>
+                <button class="gwak-btn" data-action="import-history" style="margin-top: 8px;">📋 다른 채팅에서 히스토리 가져오기</button>
+            </div>
         </div>
         <div class="gwak-panel-body gwak-note-pane" data-pane="note" style="display:none;">
             <h4>📝 RP 노트 — 참고용 메모</h4>
@@ -131,6 +136,17 @@ function createPanel() {
             <div class="gwak-field-row" style="margin-top:10px;">
                 <button class="gwak-btn" data-action="clear-note">🗑️ 비우기</button>
                 <button class="gwak-btn gwak-btn-primary" data-action="save-note">💾 저장 & 적용</button>
+            </div>
+        </div>
+        <div class="gwak-modal-overlay" id="gwak-import-overlay" style="display:none;">
+            <div class="gwak-modal">
+                <div class="gwak-modal-header">
+                    <span>📋 다른 채팅에서 히스토리 가져오기</span>
+                    <button class="gwak-btn gwak-btn-icon" data-action="close-import" title="닫기">✕</button>
+                </div>
+                <div class="gwak-modal-body" id="gwak-import-list">
+                    <div style="text-align:center; opacity:0.6; padding:20px;">불러오는 중...</div>
+                </div>
             </div>
         </div>
         <div class="gwak-resize-handle" title="크기 조절"></div>
@@ -261,6 +277,8 @@ function handlePanelClick(e) {
         case 'settings': toggleSettings(); break;
         case 'save-settings': handleSaveSettings(); break;
         case 'reset-prompt': panel.querySelector('#gwak-system-prompt').value = DEFAULT_PERSONA; break;
+        case 'import-history': openImportModal(); break;
+        case 'close-import': closeImportModal(); break;
         case 'refresh-profiles': refreshPanelProfileDropdown(); break;
         case 'note': toggleNote(); break;
         case 'save-note': handleSaveNote(); break;
@@ -387,6 +405,124 @@ async function handleReroll() {
     } finally {
         isLoading = false;
     }
+}
+
+// ─────────────────────────────────────────────────────
+// 히스토리 가져오기 (분기/새 채팅 후 옛 곽두철 대화 복구)
+// ─────────────────────────────────────────────────────
+
+async function openImportModal() {
+    const overlay = panel.querySelector('#gwak-import-overlay');
+    const list = panel.querySelector('#gwak-import-list');
+    overlay.style.display = 'flex';
+    list.innerHTML = '<div style="text-align:center; opacity:0.6; padding:20px;">불러오는 중...</div>';
+
+    try {
+        const currentKey = getCurrentChatKey();
+        const all = await dbGetAllHistories(); // 메타만 (messageCount 포함)
+        // 메시지 0개 + 현재 chat 제외
+        const items = all.filter(r => r.messageCount > 0 && r.gwakChatId !== currentKey);
+
+        if (items.length === 0) {
+            list.innerHTML = '<div style="text-align:center; opacity:0.6; padding:20px;">가져올 수 있는 다른 채팅의 히스토리가 없음.</div>';
+            return;
+        }
+
+        // 최신순 정렬
+        items.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+        // 각 항목 별로 마지막 메시지 미리보기 가져오기
+        const itemsWithPreview = await Promise.all(items.map(async (r) => {
+            try {
+                const full = await dbGetHistory(r.gwakChatId);
+                const lastMsg = full?.messages?.[full.messages.length - 1];
+                let preview = '';
+                if (lastMsg?.content) {
+                    preview = lastMsg.content.slice(0, 80).replace(/\n/g, ' ');
+                    if (lastMsg.content.length > 80) preview += '...';
+                }
+                return { ...r, preview };
+            } catch {
+                return { ...r, preview: '' };
+            }
+        }));
+
+        list.innerHTML = '';
+        itemsWithPreview.forEach(r => {
+            const div = document.createElement('div');
+            div.className = 'gwak-import-item';
+            div.dataset.key = r.gwakChatId;
+
+            const charName = r.characterName || '(미지정 캐릭터)';
+            const updatedStr = r.updatedAt ? formatRelativeTime(r.updatedAt) : '시간 미상';
+
+            div.innerHTML = `
+                <div class="gwak-import-item-head">
+                    <span class="gwak-import-item-name">${escapeHtml(charName)}</span>
+                    <span class="gwak-import-item-meta">${r.messageCount}개 · ${updatedStr}</span>
+                </div>
+                ${r.preview ? `<div class="gwak-import-item-preview">${escapeHtml(r.preview)}</div>` : ''}
+            `;
+            div.addEventListener('click', () => handleImportItemClick(r.gwakChatId));
+            list.appendChild(div);
+        });
+    } catch (e) {
+        console.error('[곽두철] import 목록 로드 실패:', e);
+        list.innerHTML = '<div style="text-align:center; color:#e88; padding:20px;">목록 로드 실패</div>';
+    }
+}
+
+function closeImportModal() {
+    const overlay = panel.querySelector('#gwak-import-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+async function handleImportItemClick(sourceKey) {
+    const currentKey = getCurrentChatKey();
+    if (sourceKey === currentKey) return;
+
+    // 현재 히스토리에 메시지 있으면 confirm
+    const currentRecord = await dbGetHistory(currentKey);
+    if (currentRecord?.messages?.length > 0) {
+        if (!confirm('현재 곽두철 히스토리를 덮어쓸까? (복구 안 됨)')) return;
+    }
+
+    try {
+        const sourceRecord = await dbGetHistory(sourceKey);
+        if (!sourceRecord?.messages?.length) {
+            alert('가져올 메시지가 없음');
+            return;
+        }
+        await dbSetHistory(currentKey, sourceRecord.messages);
+        closeImportModal();
+        loadHistory();
+        if (window.toastr?.success) window.toastr.success('히스토리 가져오기 완료');
+        else console.log('[곽두철] 히스토리 가져오기 완료');
+    } catch (e) {
+        console.error('[곽두철] import 실패:', e);
+        alert('가져오기 실패: ' + (e?.message || e));
+    }
+}
+
+function formatRelativeTime(ts) {
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return '방금';
+    if (m < 60) return `${m}분 전`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}시간 전`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d}일 전`;
+    return new Date(ts).toLocaleDateString();
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 async function handleReset() {

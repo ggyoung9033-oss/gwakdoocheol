@@ -344,3 +344,76 @@
 /* ST wand 메뉴 항목 */
 #gwak-menu-entry { cursor: pointer; }
 #gwak-menu-entry:hover { background: rgba(74, 144, 226, 0.1); }
+
+/* 히스토리 가져오기 모달 */
+.gwak-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+}
+.gwak-modal {
+    background: var(--SmartThemeBlurTintColor, #1a1f2e);
+    border: 1px solid rgba(74, 144, 226, 0.5);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--SmartThemeBodyColor, #d8e4f5);
+}
+.gwak-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, #2a4a7e, #4a90e2);
+    color: #fff;
+    font-weight: 600;
+}
+.gwak-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    min-height: 0;
+}
+.gwak-import-item {
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(74, 144, 226, 0.25);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.gwak-import-item:hover, .gwak-import-item:active {
+    background: rgba(74, 144, 226, 0.18);
+}
+.gwak-import-item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.gwak-import-item-name {
+    font-weight: 600;
+    font-size: 0.95em;
+}
+.gwak-import-item-meta {
+    font-size: 0.75em;
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+.gwak-import-item-preview {
+    font-size: 0.82em;
+    opacity: 0.7;
+    line-height: 1.4;
+    word-break: break-all;
+}
