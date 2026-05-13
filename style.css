@@ -417,3 +417,11 @@
     line-height: 1.4;
     word-break: break-all;
 }
+
+/* 위험 버튼 (nuke 등) */
+.gwak-btn-danger {
+    background: rgba(220, 80, 80, 0.15);
+    border: 1px solid rgba(220, 80, 80, 0.5);
+    color: #e88;
+}
+.gwak-btn-danger:hover { background: rgba(220, 80, 80, 0.28); }

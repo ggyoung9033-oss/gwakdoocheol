@@ -167,6 +167,16 @@ export async function deleteHistories(gwakChatIds) {
 }
 
 /**
+ * 모든 곽두철 히스토리 통째로 삭제 (nuke).
+ * 모든 ST 채팅에 흩어진 곽두철 데이터 한 번에 비움.
+ */
+export async function clearAll() {
+    return withStore('readwrite', store =>
+        reqPromise(store.clear()).then(() => true)
+    );
+}
+
+/**
  * 전체 히스토리 리스트 (기본은 메타데이터만, messages 제외)
  * @param {Object} options - { withMessages: boolean }
  */
@@ -279,6 +289,7 @@ window.gwak.db = {
     setHistory,
     deleteHistory,
     deleteHistories,
+    clearAll,
     getAllHistories,
     selfTest,
 };

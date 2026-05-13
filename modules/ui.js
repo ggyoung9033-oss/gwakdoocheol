@@ -11,6 +11,7 @@ import {
     deleteHistory as dbDeleteHistory,
     setHistory as dbSetHistory,
     getAllHistories as dbGetAllHistories,
+    clearAll as dbClearAll,
 } from './db.js';
 import { DEFAULT_PERSONA } from './persona.js';
 import { loadNote, saveNote as saveNoteData, clearNote as clearNoteData } from './note.js';
@@ -120,6 +121,10 @@ function createPanel() {
             <div class="gwak-field" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
                 <span style="font-size: 0.85em; opacity: 0.75;">분기/새 채팅으로 곽두철 히스토리가 비어버린 경우, 다른 채팅의 히스토리를 가져올 수 있음.</span>
                 <button class="gwak-btn" data-action="import-history" style="margin-top: 8px;">📋 다른 채팅에서 히스토리 가져오기</button>
+            </div>
+            <div class="gwak-field" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,80,80,0.2);">
+                <span style="font-size: 0.85em; opacity: 0.75; color: #e88;">⚠️ 모든 ST 채팅에 박혀있는 곽두철 히스토리를 한 번에 통째로 비움. 복구 안 됨.</span>
+                <button class="gwak-btn gwak-btn-danger" data-action="nuke-all" style="margin-top: 8px;">🗑️ 모든 채팅의 곽두철 히스토리 삭제</button>
             </div>
         </div>
         <div class="gwak-panel-body gwak-note-pane" data-pane="note" style="display:none;">
@@ -279,6 +284,7 @@ function handlePanelClick(e) {
         case 'reset-prompt': panel.querySelector('#gwak-system-prompt').value = DEFAULT_PERSONA; break;
         case 'import-history': openImportModal(); break;
         case 'close-import': closeImportModal(); break;
+        case 'nuke-all': handleNukeAll(); break;
         case 'refresh-profiles': refreshPanelProfileDropdown(); break;
         case 'note': toggleNote(); break;
         case 'save-note': handleSaveNote(); break;
@@ -501,6 +507,26 @@ async function handleImportItemClick(sourceKey) {
     } catch (e) {
         console.error('[곽두철] import 실패:', e);
         alert('가져오기 실패: ' + (e?.message || e));
+    }
+}
+
+/**
+ * 모든 ST 채팅의 곽두철 히스토리 통째로 삭제 (nuke).
+ * confirm 두 번으로 실수 방지.
+ */
+async function handleNukeAll() {
+    if (!confirm('진짜로 모든 ST 채팅의 곽두철 히스토리를 다 삭제할까?')) return;
+    if (!confirm('복구 안 됨. 진짜진짜?')) return;
+
+    try {
+        await dbClearAll();
+        loadHistory(); // 현재 패널도 빈 상태로 갱신
+        if (window.toastr?.success) window.toastr.success('모든 곽두철 히스토리 삭제 완료');
+        else console.log('[곽두철] 모든 히스토리 nuke 완료');
+        toggleSettings(); // 설정 패널 닫고 채팅으로 돌아감
+    } catch (e) {
+        console.error('[곽두철] nuke 실패:', e);
+        alert('삭제 실패: ' + (e?.message || e));
     }
 }
 
